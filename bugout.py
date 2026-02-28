@@ -155,12 +155,12 @@ def print_banner():
         else:
             # Fallback banner
             banner = f"""
-{c(f"{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}", Colors.BRIGHT_CYAN)}
-{c(f"{Symbols.PIPE}{'':^46}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+ {c(f"{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
 {c(f"{Symbols.PIPE}{'🐛 BUGOUT':^58}{Symbols.PIPE}", Colors.BOLD + Colors.BRIGHT_WHITE)}
 {c(f"{Symbols.PIPE}{'Automated Bug Analysis & Patch Generation':^58}{Symbols.PIPE}", Colors.DIM)}
-{c(f"{Symbols.PIPE}{'':^46}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
-{c(f"{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+ {c(f"{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}", Colors.BRIGHT_CYAN)}
 """
             print(banner)
     except:
@@ -954,7 +954,7 @@ def main():
         
         # Success banner
         print(f"\n{c(f'{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}', Colors.BRIGHT_GREEN)}")
-        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)} {c(f'{Symbols.SPARKLES} BUGOUT COMPLETE {Symbols.SPARKLES}', Colors.BOLD + Colors.BRIGHT_GREEN):^54} {c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)}")
+        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)} {c(f'{Symbols.SPARKLES} BUGOUT COMPLETE {Symbols.SPARKLES}', Colors.BOLD + Colors.BRIGHT_GREEN):^56} {c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)}")
         print(f"{c(f'{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}', Colors.BRIGHT_GREEN)}\n")
         
         print_box("Summary", [
@@ -978,7 +978,7 @@ def main():
         
     except Exception as e:
         print(f"\n{c(f'{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}', Colors.BRIGHT_RED)}")
-        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)} {error('Execution Failed'):^54} {c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)}")
+        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)} {error('Execution Failed'):^56} {c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)}")
         print(f"{c(f'{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}', Colors.BRIGHT_RED)}")
         print(f"\n{error(f'{e}')}\n")
         sys.exit(1)
