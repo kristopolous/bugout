@@ -7,7 +7,7 @@ Usage: python bugout.py <repo> <bug_number>
 This tool:
 1. Fetches all comments for a GitHub issue using gh CLI
 2. Extracts features from comments using parser.py
-3. Analyzes bug nature using MCP tool and generates PRD
+3. Analyzes bug nature and generates PRD
 4. Attempts to fix the bug
 5. Finds competent reviewers using Yutori API
 6. Prepares a patch folder with all necessary files
@@ -17,16 +17,11 @@ import os
 import sys
 import json
 import subprocess
-import tempfile
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
-
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
-
+from collections import Counter
 
 from review_checker import check_reviewers_bulk, get_best_reviewer
 
@@ -136,11 +131,82 @@ def extract_features(comments_file: Path, output_dir: Path) -> Path:
     return output_file
 
 
+# Core analysis logic from mcp.py
+
+def compute_frequency(values: list) -> list:
+    """Return [[value, count], ...] sorted by count descending."""
+    counter = Counter(str(v) for v in values)
+    return [[v, c] for v, c in counter.most_common()]
+
+
+CATEGORICAL_FIELDS = [
+    "software_version",
+    "platform",
+    "bug_behaviour",
+    "crash",
+    "user_frustration",
+]
+
+TEXT_FIELDS = [
+    "technical_description",
+    "input_data",
+    "expected_behaviour",
+]
+
+
+def analyze_issue(issue_id: str, reports: list) -> dict:
+    """
+    Build:
+      - frequency distributions for categorical fields
+      - aggregated text summaries for freeform fields
+      - a PRD-ready summary block
+    """
+    frequency_dist = {}
+
+    for field in CATEGORICAL_FIELDS:
+        values = [r.get(field) for r in reports if field in r]
+        frequency_dist[field] = compute_frequency(values)
+
+    # Collect unique text entries for freeform fields
+    text_aggregates = {}
+    for field in TEXT_FIELDS:
+        seen = []
+        for r in reports:
+            v = r.get(field, "").strip()
+            if v and v not in seen:
+                seen.append(v)
+        text_aggregates[field] = seen
+
+    # Derive crash rate
+    crash_flags = [r.get("crash", False) for r in reports]
+    crash_rate = round(sum(1 for c in crash_flags if c) / len(crash_flags) * 100, 1) if crash_flags else 0
+
+    # Most common frustration level
+    frustration_dist = dict(frequency_dist.get("user_frustration", []))
+    top_frustration = max(frustration_dist.items(), key=lambda x: x[1])[0] if frustration_dist else "unknown"
+
+    prd_summary = {
+        "issue_id": issue_id,
+        "total_reports": len(reports),
+        "crash_rate_pct": crash_rate,
+        "dominant_frustration_level": top_frustration,
+        "top_affected_platform": frequency_dist["platform"][0][0] if frequency_dist.get("platform") else "unknown",
+        "top_affected_version": frequency_dist["software_version"][0][0] if frequency_dist.get("software_version") else "unknown",
+        "primary_bug_behaviour": frequency_dist["bug_behaviour"][0][0] if frequency_dist.get("bug_behaviour") else "unknown",
+    }
+
+    return {
+        "frequency_distributions": frequency_dist,
+        "text_aggregates": text_aggregates,
+        "prd_summary": prd_summary,
+    }
+
+
 def analyze_with_mcp(features_file: Path, issue_id: str) -> Dict:
     """
-    Step 3: Use MCP to analyze bug reports and generate PRD summary.
+    Step 3: Analyze bug reports and generate PRD summary.
     """
-    print("Step 3: Analyzing bug reports with MCP...")
+    print("Step 3: Analyzing bug reports...")
     
     # Load features
     reports = []
@@ -149,9 +215,6 @@ def analyze_with_mcp(features_file: Path, issue_id: str) -> Dict:
             line = line.strip()
             if line:
                 reports.append(json.loads(line))
-    
-    # Use mcp.py logic directly (we'll import from it)
-    from mcp import analyze_issue
     
     result = analyze_issue(issue_id, reports)
     
@@ -165,7 +228,7 @@ def analyze_with_mcp(features_file: Path, issue_id: str) -> Dict:
 
 def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
     """
-    Generate a PRD document from MCP analysis results.
+    Generate a PRD document from analysis results.
     """
     print("Step 4: Generating PRD...")
     

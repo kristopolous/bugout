@@ -17,9 +17,9 @@ BugOut performs 6 automated steps:
 
 - Python 3.8+
 - GitHub CLI (`gh`)
-- Environment variables:
+- `.env` file in project root with:
   - `FASTINO_KEY` - For AI inference
-  - `YUTORI_API_KEY` - For reviewer competence checking
+  - `YUTORI_KEY` - For reviewer competence checking
 
 ## Installation
 
@@ -30,9 +30,11 @@ pip install requests python-dotenv
 # Ensure gh CLI is installed
 gh --version
 
-# Set environment variables
-export FASTINO_KEY="your-key"
-export YUTORI_API_KEY="your-key"
+# Create .env file in project root (parent of qwen/)
+cat > ../.env << EOF
+FASTINO_KEY=your-key
+YUTORI_KEY=your-key
+EOF
 ```
 
 ## Usage
@@ -141,7 +143,9 @@ Reviewer analysis containing:
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `FASTINO_KEY` | API key for AI inference | Yes |
-| `YUTORI_API_KEY` | API key for Yutori reviewer check | Yes |
+| `YUTORI_KEY` | API key for Yutori reviewer check | Yes |
+
+The `.env` file should be in the parent directory (project root).
 
 ## Example Output
 
