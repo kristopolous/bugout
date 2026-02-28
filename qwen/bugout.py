@@ -377,14 +377,47 @@ def print_summary(patch_folder: Path, best_reviewer: str, issue_number: str, rep
 
 
 def main():
-    if len(sys.argv) < 3:
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="🐛 BugOut - Automated Bug Fix Workflow",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python bugout.py microsoft/vscode 12345
+  python bugout.py facebook/react 67890 ./my_output
+  python bugout.py --gui
+        """
+    )
+    
+    parser.add_argument("repo", nargs="?", help="GitHub repository (format: owner/repo)")
+    parser.add_argument("issue", nargs="?", help="Issue number")
+    parser.add_argument("output_dir", nargs="?", help="Output directory (default: ./bugout_data/<uuid>)")
+    parser.add_argument("--gui", action="store_true", help="Launch graphical user interface")
+    
+    args = parser.parse_args()
+    
+    # Launch GUI if requested
+    if args.gui:
+        try:
+            from bugout_gui import main as gui_main
+            gui_main()
+            return
+        except ImportError as e:
+            print(f"\n{Colors.BRIGHT_RED}✗ Error: wxPython not installed{Colors.RESET}", file=sys.stderr)
+            print(f"  Install with: pip install wxPython", file=sys.stderr)
+            print(f"  ({e})", file=sys.stderr)
+            sys.exit(1)
+    
+    # Validate CLI arguments
+    if not args.repo or not args.issue:
         # Load logo for usage message
         logo_path = Path(__file__).parent.parent / "logo.ansiart"
         logo = ""
         if logo_path.exists():
             with open(logo_path, 'r') as f:
                 logo = f.read()
-        
+
         print(f"""
 {Colors.BRIGHT_CYAN}{logo}{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════╗{Colors.RESET}
@@ -392,16 +425,18 @@ def main():
 {Colors.BRIGHT_MAGENTA}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}Usage:{Colors.RESET}                                                       {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py <repo> <issue_number> [output_dir]{Colors.RESET}          {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py --gui{Colors.RESET}                                       {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}║{Colors.RESET}                                                          {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
-{Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}Example:{Colors.RESET}                                                     {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}Examples:{Colors.RESET}                                                    {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py microsoft/vscode 12345{Colors.RESET}                      {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py --gui{Colors.RESET}                                       {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
 {Colors.BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
 """, file=sys.stderr)
         sys.exit(1)
 
-    repo = sys.argv[1]
-    issue_number = sys.argv[2]
-    output_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+    repo = args.repo
+    issue_number = args.issue
+    output_dir = Path(args.output_dir) if args.output_dir else None
 
     # Validate environment
     if not validate_environment():
