@@ -21,9 +21,11 @@ class Colors:
     DIM = "\033[2m"
     GREEN = "\033[32m"
     CYAN = "\033[36m"
+    WHITE = "\033[37m"
     BRIGHT_GREEN = "\033[92m"
     BRIGHT_CYAN = "\033[96m"
     BRIGHT_RED = "\033[91m"
+    BRIGHT_WHITE = "\033[97m"
 
 SYMBOLS = {"check": "✅", "star": "★", "user": "👤"}
 

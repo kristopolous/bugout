@@ -7,30 +7,19 @@ A wxPython GUI for the BugOut automated bug fix workflow.
 
 import wx
 import wx.adv
-import wx.html
 import threading
 import queue
 import json
 import os
 import sys
+import io
+import re
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
-
-# ANSI color codes for terminal output
-class Colors:
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    GREEN = "\033[32m"
-    CYAN = "\033[36m"
-    MAGENTA = "\033[35m"
-    BRIGHT_GREEN = "\033[92m"
-    BRIGHT_CYAN = "\033[96m"
-    BRIGHT_MAGENTA = "\033[95m"
 
 SYMBOLS = {
     "success": "✓",
@@ -61,40 +50,100 @@ class LogPanel(wx.Panel):
         self.attr_warning = wx.TextAttr(wx.Colour(200, 150, 0))  # Orange
         self.attr_bold = wx.TextAttr(wx.BLACK)
         self.attr_bold.SetFontWeight(wx.FONTWEIGHT_BOLD)
+        self.attr_dim = wx.TextAttr(wx.Colour(100, 100, 100))
+        self.attr_dim.SetFontStyle(wx.FONTSTYLE_ITALIC)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.log_text, 1, wx.EXPAND)
         self.SetSizer(sizer)
     
-    def write(self, text, attr=None):
-        """Write text to log with optional attribute."""
+    def write_line(self, text, attr=None):
+        """Write a line of text to log - MUST be called from main thread."""
         if attr is None:
             attr = self.attr_normal
         self.log_text.SetDefaultStyle(attr)
-        self.log_text.AppendText(text)
-    
-    def write_line(self, text, attr=None):
-        """Write a line of text to log."""
-        self.write(text + "\n", attr)
+        self.log_text.AppendText(text + "\n")
     
     def clear(self):
         """Clear the log."""
         self.log_text.Clear()
     
     def log_success(self, text):
-        self.write_line(f"  {SYMBOLS['check']} {text}", self.attr_success)
+        wx.CallAfter(self.write_line, f"  {SYMBOLS['check']} {text}", self.attr_success)
     
     def log_error(self, text):
-        self.write_line(f"  {SYMBOLS['error']} {text}", self.attr_error)
+        wx.CallAfter(self.write_line, f"  {SYMBOLS['error']} {text}", self.attr_error)
     
     def log_info(self, text):
-        self.write_line(f"  {SYMBOLS['info']} {text}", self.attr_info)
+        wx.CallAfter(self.write_line, f"  {SYMBOLS['info']} {text}", self.attr_info)
     
     def log_warning(self, text):
-        self.write_line(f"  {SYMBOLS['warning']} {text}", self.attr_warning)
+        wx.CallAfter(self.write_line, f"  {SYMBOLS['warning']} {text}", self.attr_warning)
     
     def log_header(self, text):
-        self.write_line(f"\n{text}\n", self.attr_bold)
+        wx.CallAfter(self.write_line, f"\n{text}\n", self.attr_bold)
+    
+    def log_dim(self, text):
+        wx.CallAfter(self.write_line, text, self.attr_dim)
+    
+    def log_raw(self, text):
+        """Log raw text with ANSI code parsing."""
+        wx.CallAfter(self._parse_and_log, text)
+    
+    def _parse_and_log(self, text):
+        """Parse ANSI codes and log with appropriate style."""
+        # Strip ANSI codes
+        clean_text = re.sub(r'\033\[[0-9;]*m', '', text)
+        
+        if not clean_text.strip():
+            return
+        
+        # Determine style based on content
+        if '✓' in text or 'complete' in text.lower():
+            attr = self.attr_success
+        elif '✗' in text or 'error' in text.lower() or 'failed' in text.lower():
+            attr = self.attr_error
+        elif '⚠' in text or 'warning' in text.lower():
+            attr = self.attr_warning
+        elif '●' in text or '━' in text:
+            attr = self.attr_bold
+        elif '→' in text:
+            attr = self.attr_dim
+        else:
+            attr = self.attr_normal
+        
+        self.write_line(clean_text, attr)
+
+
+class CapturingWriter:
+    """Thread-safe file-like object that captures output and sends to log panel."""
+    
+    def __init__(self, log_panel, msg_queue):
+        self.log_panel = log_panel
+        self.msg_queue = msg_queue
+        self.buffer = ""
+        self._lock = threading.Lock()
+    
+    def write(self, text):
+        """Capture text and queue for main thread."""
+        with self._lock:
+            self.buffer += text
+            # Process complete lines
+            while '\n' in self.buffer:
+                line, self.buffer = self.buffer.split('\n', 1)
+                if line.strip():
+                    # Send to queue for main thread processing
+                    self.msg_queue.put({"type": "log", "text": line})
+    
+    def flush(self):
+        """Flush buffer."""
+        with self._lock:
+            if self.buffer:
+                self.msg_queue.put({"type": "log", "text": self.buffer})
+                self.buffer = ""
+    
+    def isatty(self):
+        return False
 
 
 class ConfigPanel(wx.Panel):
@@ -207,7 +256,9 @@ class BugOutFrame(wx.Frame):
         # Message queue for thread-safe logging
         self.msg_queue = queue.Queue()
         self.is_running = False
-        self.current_process = None
+        self.original_stdout = None
+        self.original_stderr = None
+        self.capturing_writer = None
         
         # Create UI
         self._create_menu()
@@ -334,7 +385,10 @@ class BugOutFrame(wx.Frame):
                 msg_type = msg.get("type", "normal")
                 text = msg.get("text", "")
                 
-                if msg_type == "success":
+                if msg_type == "log":
+                    # Raw log output from capturing writer
+                    self.log_panel.log_raw(text)
+                elif msg_type == "success":
                     self.log_panel.log_success(text)
                 elif msg_type == "error":
                     self.log_panel.log_error(text)
@@ -384,19 +438,27 @@ class BugOutFrame(wx.Frame):
         self.config_panel.Enable(False)
         self.log_panel.clear()
         
+        # Log header with configuration
+        self.log_panel.log_header(f"🐛 BugOut Workflow Started")
+        self.log_panel.log_info(f"Repository: {config['repo']}")
+        self.log_panel.log_info(f"Issue: #{config['issue']}")
+        self.log_panel.log_info(f"Output: {config['output_dir']}")
+        self.log_panel.log_dim("─" * 60)
+        
+        # Create capturing writer for stdout/stderr
+        self.capturing_writer = CapturingWriter(self.log_panel, self.msg_queue)
+        
         # Start worker thread
-        self.status_panel.update_status("Starting...")
+        self.status_panel.update_status("Running")
         thread = threading.Thread(target=self._run_bugout, args=(config,))
         thread.daemon = True
         thread.start()
     
     def on_stop(self, event):
         """Stop running workflow."""
-        if self.current_process:
-            self.current_process.terminate()
         self.is_running = False
         self._reset_ui()
-        self.msg_queue.put({"type": "warning", "text": "Process stopped by user"})
+        self.log_panel.log_warning("Process stopped by user")
     
     def on_exit(self, event):
         """Exit application."""
@@ -415,7 +477,6 @@ class BugOutFrame(wx.Frame):
         info.Description = "Automated Bug Fix Workflow\n\nFrom bug report to production-ready patch in 8 steps."
         info.Developers = ["BugOut Team"]
         info.WebSite = ("https://github.com/bugout", "BugOut GitHub")
-        info.SetIcon(wx.Icon(wx.ART_TICK_MARK, wx.ART_OTHER, (32, 32)))
         wx.adv.AboutBox(info)
     
     def on_open(self, event):
@@ -489,27 +550,41 @@ class BugOutFrame(wx.Frame):
     
     def _run_bugout(self, config):
         """Run BugOut workflow in background thread."""
+        # Save original stdout/stderr
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        
         try:
+            # Redirect stdout/stderr to our capturing writer
+            sys.stdout = self.capturing_writer
+            sys.stderr = self.capturing_writer
+            
             # Import bugout module
             from bugout import run_bugout
-            
+
             # Run workflow
             success, patch_folder = run_bugout(
                 config["repo"],
                 config["issue"],
                 Path(config["output_dir"]) if config["output_dir"] else None
             )
-            
+
             # Queue completion message
             self.msg_queue.put({
                 "type": "complete",
                 "success": success,
                 "patch_folder": str(patch_folder) if patch_folder else None
             })
-            
+
         except Exception as e:
             self.msg_queue.put({"type": "error", "text": f"Error: {str(e)}"})
             self.msg_queue.put({"type": "complete", "success": False})
+        
+        finally:
+            # Restore stdout/stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            self.capturing_writer.flush()
     
     def _on_complete(self, success, patch_folder):
         """Handle workflow completion."""
