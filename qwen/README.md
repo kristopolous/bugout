@@ -112,24 +112,27 @@ python patch_creator.py <clone_path> <agent_response.json> <output_dir>
 
 ## Output Structure
 
+Each run gets a unique 8-character UUID as its directory name for easy tracking and organization.
+
 ```
 bugout_data/
-└── <repo>_<issue>/
-    ├── issue_<number>_comments.json    # Raw issue data from GitHub
-    ├── bugs_with_features.json         # Extracted features
-    ├── prd.md                          # Product Requirements Document
-    ├── prd.analysis.json               # Feature analysis JSON
-    ├── bug_fix.patch                   # Initial proposed fix
-    ├── bug_fix.json                    # Fix details JSON
-    ├── reviewer.json                   # Reviewer analysis
-    ├── agent_response.json             # Agentic loop output (Step 7)
-    ├── generated.patch                 # AI-generated unified diff (Step 8)
-    ├── git.patch                       # Git diff patch (Step 8)
-    ├── applied_changes.json            # Applied changes log (Step 8)
-    ├── temp/                           # Temp directory with repo clone
-    │   └── <repo>_clone/               # Cloned repository
-    ├── repo_snapshot/                  # Snapshot of modified repo
-    └── patch/                          # Complete patch folder
+└── a3f5b2c1/                 # ← Unique run ID (UUID)
+    ├── run_metadata.json     # Run info: UUID, repo, issue, timestamp
+    ├── issue_comments.json   # Raw issue data from GitHub
+    ├── bugs_with_features.json  # Extracted features
+    ├── prd.md                # Product Requirements Document
+    ├── prd.analysis.json     # Feature analysis JSON
+    ├── bug_fix.patch         # Initial proposed fix
+    ├── bug_fix.json          # Fix details JSON
+    ├── reviewer.json         # Reviewer analysis
+    ├── agent_response.json   # Agentic loop output (Step 7)
+    ├── generated.patch       # AI-generated unified diff (Step 8)
+    ├── git.patch             # Git diff patch (Step 8)
+    ├── applied_changes.json  # Applied changes log (Step 8)
+    ├── temp/                 # Temp directory with repo clone
+    │   └── microsoft_vscode_clone/  # Cloned repository
+    ├── repo_snapshot/        # Snapshot of modified repo
+    └── patch/                # Complete patch folder
         ├── prd.md
         ├── bug_fix.patch
         ├── reviewer.json
@@ -141,7 +144,21 @@ bugout_data/
         ├── generated.patch
         ├── git.patch
         ├── applied_changes.json
-        └── patch_manifest.json
+        └── patch_manifest.json  # Includes run_id reference
+```
+
+### Run Metadata
+
+Each run creates a `run_metadata.json` file:
+
+```json
+{
+  "run_id": "a3f5b2c1",
+  "repo": "microsoft/vscode",
+  "issue_number": "12345",
+  "timestamp": "2026-02-27T10:30:00.000000",
+  "output_dir": "./bugout_data/a3f5b2c1"
+}
 ```
 
 ## Generated Artifacts
