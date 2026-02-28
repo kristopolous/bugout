@@ -16,8 +16,11 @@ class Colors:
     DIM = "\033[2m"
     GREEN = "\033[32m"
     CYAN = "\033[36m"
+    MAGENTA = "\033[35m"
     BRIGHT_GREEN = "\033[92m"
     BRIGHT_CYAN = "\033[96m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_RED = "\033[91m"
 
 SYMBOLS = {"check": "✅", "bug": "🐛", "sparkle": "✨"}
 
