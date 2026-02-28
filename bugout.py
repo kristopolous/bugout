@@ -25,6 +25,83 @@ from collections import Counter
 
 from review_checker import check_reviewers_bulk, get_best_reviewer
 
+# Load environment variables
+OPENAI_HOST = os.environ.get("OPENAI_HOST")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+
+def summarize_bug_nature(reports: list, issue_title: str = "") -> str:
+    """
+    Use OpenAI API to summarize the nature of the bug based on all reports.
+    Returns a comprehensive summary of the bug's nature, impact, and root causes.
+    """
+    if not OPENAI_HOST or not OPENAI_MODEL:
+        print("  ⚠ OPENAI_HOST or OPENAI_MODEL not set, skipping LLM summary")
+        return "No LLM summary available (missing OPENAI_HOST or OPENAI_MODEL)"
+    
+    # Prepare context from reports
+    contexts = []
+    for r in reports[:20]:  # Limit to first 20 reports to avoid token limits
+        text = r.get("text", "")
+        if text:
+            contexts.append(text[:500])  # Truncate each to avoid overflow
+    
+    if not contexts:
+        return "No text content available for summarization"
+    
+    # Build prompt
+    prompt = f"""Analyze the following bug reports and provide a comprehensive summary of:
+1. The nature and root cause of the bug
+2. The impact on users
+3. Technical details about what's going wrong
+4. Any patterns or commonalities across reports
+5. Suggested approach to fixing the issue
+
+Issue Title: {issue_title}
+
+Bug Reports:
+"""
+    
+    for i, ctx in enumerate(contexts, 1):
+        prompt += f"\n--- Report {i} ---\n{ctx}\n"
+    
+    try:
+        import requests
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        if OPENAI_API_KEY:
+            headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
+        
+        payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": "You are a technical analyst specializing in bug report analysis. Provide clear, actionable summaries of software issues."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1500
+        }
+        
+        response = requests.post(
+            f"{OPENAI_HOST}/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        summary = result["choices"][0]["message"]["content"]
+        return summary
+        
+    except Exception as e:
+        print(f"  ⚠ Error generating LLM summary: {e}", file=sys.stderr)
+        return f"Error generating summary: {str(e)}"
+
 
 def run_command(cmd: List[str], cwd: Optional[str] = None, capture_output: bool = True) -> tuple:
     """Run a shell command and return (stdout, stderr, returncode)."""
@@ -202,7 +279,7 @@ def analyze_issue(issue_id: str, reports: list) -> dict:
     }
 
 
-def analyze_with_mcp(features_file: Path, issue_id: str) -> Dict:
+def analyze_with_mcp(features_file: Path, issue_id: str, comments_file: Path) -> Dict:
     """
     Step 3: Analyze bug reports and generate PRD summary.
     """
@@ -216,7 +293,22 @@ def analyze_with_mcp(features_file: Path, issue_id: str) -> Dict:
             if line:
                 reports.append(json.loads(line))
     
+    # Get issue title from comments file
+    issue_title = ""
+    try:
+        with open(comments_file) as f:
+            rows = json.load(f)
+            if rows:
+                issue_title = rows[0].get("issue_title", "")
+    except:
+        pass
+    
     result = analyze_issue(issue_id, reports)
+    
+    # Generate LLM summary of bug nature
+    print("  Generating bug nature summary...")
+    bug_nature_summary = summarize_bug_nature(reports, issue_title)
+    result["bug_nature_summary"] = bug_nature_summary
     
     print(f"  ✓ Generated PRD summary")
     print(f"    - Total reports: {result['prd_summary']['total_reports']}")
@@ -234,12 +326,18 @@ def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
     
     prd_file = output_dir / "prd.md"
     
+    bug_nature = mcp_result.get('bug_nature_summary', '')
+    
     prd = f"""# Product Requirements Document (PRD)
 
 ## Bug Analysis Report
 
 **Issue ID:** {mcp_result['prd_summary']['issue_id']}  
 **Generated:** {datetime.now().isoformat()}
+
+### Bug Nature Summary
+
+{bug_nature}
 
 ### Summary
 
@@ -426,7 +524,7 @@ def main():
         features_file = extract_features(comments_file, output_dir)
         
         # Step 3: Analyze with MCP
-        mcp_result = analyze_with_mcp(features_file, issue_number)
+        mcp_result = analyze_with_mcp(features_file, issue_number, comments_file)
         
         # Step 4: Generate PRD
         prd_file = generate_prd(mcp_result, output_dir)
