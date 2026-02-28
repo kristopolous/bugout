@@ -19,7 +19,8 @@ def prepare_patch_folder(
     comments_file: Path,
     features_file: Path,
     analysis_file: Optional[Path] = None,
-    bug_fix_json: Optional[Path] = None
+    bug_fix_json: Optional[Path] = None,
+    run_id: Optional[str] = None
 ) -> Path:
     """
     Prepare a complete patch folder with all artifacts.
@@ -63,6 +64,7 @@ def prepare_patch_folder(
     # Create patch_manifest.json
     manifest = {
         "patch_folder": str(patch_folder),
+        "run_id": run_id,
         "artifacts": [dest_name for _, dest_name in artifacts],
         "status": "ready_for_review"
     }

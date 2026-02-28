@@ -19,6 +19,7 @@ import json
 import subprocess
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -155,10 +156,10 @@ def print_banner():
             # Fallback banner
             banner = f"""
 {c(f"{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}", Colors.BRIGHT_CYAN)}
-{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'':^46}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
 {c(f"{Symbols.PIPE}{'🐛 BUGOUT':^58}{Symbols.PIPE}", Colors.BOLD + Colors.BRIGHT_WHITE)}
 {c(f"{Symbols.PIPE}{'Automated Bug Analysis & Patch Generation':^58}{Symbols.PIPE}", Colors.DIM)}
-{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'':^46}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
 {c(f"{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}", Colors.BRIGHT_CYAN)}
 """
             print(banner)
@@ -505,7 +506,7 @@ def analyze_with_mcp(features_file: Path, issue_id: str, comments_file: Path) ->
     return result
 
 
-def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
+def generate_prd(mcp_result: Dict, output_dir: Path, run_uuid: str) -> Path:
     """
     Step 4: Generate PRD document from analysis results.
     """
@@ -520,6 +521,7 @@ def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
 ## Bug Analysis Report
 
 **Issue ID:** {mcp_result['prd_summary']['issue_id']}  
+**Run UUID:** {run_uuid}  
 **Generated:** {datetime.now().isoformat()}
 
 ### Bug Nature Summary
@@ -901,8 +903,11 @@ def main():
     repo = sys.argv[1]
     issue_number = sys.argv[2]
     
-    # Create output directory
-    output_dir = Path("bugout_output") / repo.replace("/", "_") / issue_number
+    # Generate UUID for this run
+    run_uuid = str(uuid.uuid4())[:8]
+    
+    # Create output directory with UUID
+    output_dir = Path("bugout_output") / f"{run_uuid}_{repo.replace('/', '_')}_{issue_number}"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create temp directory for cloning
@@ -911,6 +916,7 @@ def main():
     
     print_banner()
     print(f"  {bold('Target:')} {c(repo + '#' + issue_number, Colors.BRIGHT_CYAN)}")
+    print(f"  {bold('Run ID:')} {c(run_uuid, Colors.BRIGHT_YELLOW)}")
     print(f"  {bold('Output:')} {c(str(output_dir), Colors.DIM)}\n")
     print_divider()
     
@@ -925,7 +931,7 @@ def main():
         mcp_result = analyze_with_mcp(features_file, issue_number, comments_file)
         
         # Step 4: Generate PRD
-        prd_file = generate_prd(mcp_result, output_dir)
+        prd_file = generate_prd(mcp_result, output_dir, run_uuid)
         
         # Step 5: Find competent reviewers
         authors = find_commenters(comments_file)

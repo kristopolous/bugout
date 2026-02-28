@@ -23,6 +23,7 @@ class Colors:
     CYAN = "\033[36m"
     BRIGHT_GREEN = "\033[92m"
     BRIGHT_CYAN = "\033[96m"
+    BRIGHT_RED = "\033[91m"
 
 SYMBOLS = {"check": "✅", "star": "★", "user": "👤"}
 

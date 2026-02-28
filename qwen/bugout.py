@@ -8,6 +8,7 @@ bugout.py - Main BugOut Orchestrator
 import json
 import sys
 import os
+import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 from dotenv import load_dotenv
@@ -185,23 +186,37 @@ def run_bugout(
     Args:
         repo: Repository in format "owner/repo"
         issue_number: Issue number
-        output_dir: Output directory (default: ./bugout_data/<repo>/<issue_number>)
+        output_dir: Output directory (default: ./bugout_data/<uuid>)
 
     Returns:
         Tuple of (success: bool, patch_folder_path: Optional[Path])
     """
     # Print banner
     print_banner()
-    
+
+    # Generate unique run ID
+    run_id = str(uuid.uuid4())[:8]  # Short UUID for readability
+
     # Setup output directory
     if output_dir is None:
-        repo_name = repo.replace("/", "_")
-        output_dir = Path(f"./bugout_data/{repo_name}/{issue_number}")
+        output_dir = Path(f"./bugout_data/{run_id}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save run metadata
+    metadata = {
+        "run_id": run_id,
+        "repo": repo,
+        "issue_number": issue_number,
+        "timestamp": str(uuid.uuid4()),
+        "output_dir": str(output_dir)
+    }
+    with open(output_dir / "run_metadata.json", 'w') as f:
+        json.dump(metadata, f, indent=2)
 
     # Print header
     print(f"{Colors.BG_BLUE}{Colors.BOLD} Configuration {Colors.RESET}", file=sys.stderr)
+    print_sub_step("Run ID", f"{Colors.BRIGHT_MAGENTA}{run_id}{Colors.RESET}")
     print_sub_step("Repository", f"{Colors.BRIGHT_CYAN}{repo}{Colors.RESET}")
     print_sub_step("Issue", f"{Colors.BRIGHT_YELLOW}#{issue_number}{Colors.RESET}")
     print_sub_step("Output", f"{Colors.DIM}{output_dir}{Colors.RESET}")
@@ -283,7 +298,8 @@ def run_bugout(
         comments_file,
         features_file,
         analysis_file if analysis_file.exists() else None,
-        bug_fix_json if bug_fix_json.exists() else None
+        bug_fix_json if bug_fix_json.exists() else None,
+        run_id
     )
     print_step_success(f"Created: {Colors.DIM}{patch_folder}{Colors.RESET}")
 
@@ -308,7 +324,7 @@ def run_bugout(
         # ═══════════════════════════════════════════════════════════════════════
         print_step_header(8, total_steps, f"{SYMBOLS['sparkle']} Generating actual patch file")
         generated_patch, updated_patch_folder = create_patch(
-            clone_path, agent_response, output_dir
+            clone_path, agent_response, output_dir, run_id
         )
         if generated_patch and updated_patch_folder:
             print_step_success(f"Generated: {Colors.DIM}{generated_patch}{Colors.RESET}")
@@ -324,17 +340,18 @@ def run_bugout(
     print(f"{Colors.BG_MAGENTA}{Colors.BOLD}  {SYMBOLS['rocket']} BugOut Complete! {Colors.RESET}", file=sys.stderr)
     print(f"{Colors.BRIGHT_MAGENTA}{'═' * 62}{Colors.RESET}", file=sys.stderr)
     
-    print_summary(patch_folder, best_reviewer, issue_number, repo)
+    print_summary(patch_folder, best_reviewer, issue_number, repo, run_id)
 
     return True, patch_folder
 
 
-def print_summary(patch_folder: Path, best_reviewer: str, issue_number: str, repo: str):
+def print_summary(patch_folder: Path, best_reviewer: str, issue_number: str, repo: str, run_id: str):
     """Print a summary of the generated artifacts."""
     summary = f"""
 {Colors.BRIGHT_CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.RESET}
 {Colors.BRIGHT_CYAN}║{Colors.RESET}              {Colors.BOLD}BugOut Summary{Colors.RESET}                                {Colors.BRIGHT_CYAN}║{Colors.RESET}
 {Colors.BRIGHT_CYAN}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Run ID:{Colors.RESET}     {Colors.BRIGHT_MAGENTA}{run_id:<46}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
 {Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Repository:{Colors.RESET} {Colors.WHITE}{repo:<44}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
 {Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Issue:{Colors.RESET}      {Colors.BRIGHT_YELLOW}#{issue_number:<46}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
 {Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Patch Folder:{Colors.RESET} {Colors.DIM}{str(patch_folder)[:44]:<44}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}

@@ -269,21 +269,30 @@ def generate_patch_from_agent(
 def update_patch_folder(
     output_dir: Path,
     generated_patch: Path,
-    clone_path: Path
+    clone_path: Path,
+    run_id: Optional[str] = None
 ) -> Path:
     """
     Update the patch folder with the newly generated patch.
-    
+
     Args:
         output_dir: Output directory
         generated_patch: Path to generated.patch
         clone_path: Path to cloned repository
-        
+        run_id: Optional run ID to include in manifest
+
     Returns:
         Path to updated patch folder
     """
     patch_folder = output_dir / "patch"
     patch_folder.mkdir(parents=True, exist_ok=True)
+    
+    # Load run metadata if available
+    metadata_file = output_dir / "run_metadata.json"
+    if metadata_file.exists():
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+            run_id = run_id or metadata.get("run_id")
     
     # Copy generated patch to patch folder
     shutil.copy2(generated_patch, patch_folder / "generated.patch")
@@ -316,11 +325,12 @@ def update_patch_folder(
             manifest = json.load(f)
     else:
         manifest = {"artifacts": []}
-    
+
     manifest["generated_patch"] = "generated.patch"
     manifest["git_patch"] = "git.patch"
     manifest["applied_changes"] = "applied_changes.json"
     manifest["agent_response"] = "agent_response.json"
+    manifest["run_id"] = run_id
     manifest["status"] = "ready_for_review"
     manifest["timestamp"] = datetime.now().isoformat()
     
@@ -334,16 +344,18 @@ def update_patch_folder(
 def create_patch(
     clone_path: Path,
     agent_response: Dict,
-    output_dir: Path
+    output_dir: Path,
+    run_id: Optional[str] = None
 ) -> Tuple[Optional[Path], Path]:
     """
     Main function to create patch and update directory.
-    
+
     Args:
         clone_path: Path to cloned repository
         agent_response: Agent response JSON
         output_dir: Output directory
-        
+        run_id: Optional run ID to include in manifest
+
     Returns:
         Tuple of (generated_patch, patch_folder)
     """
@@ -351,14 +363,14 @@ def create_patch(
     generated_patch, applied_changes = generate_patch_from_agent(
         clone_path, agent_response, output_dir
     )
-    
+
     if not generated_patch:
         print("Failed to generate patch", file=sys.stderr)
         return None, None
-    
+
     # Update patch folder
-    patch_folder = update_patch_folder(output_dir, generated_patch, clone_path)
-    
+    patch_folder = update_patch_folder(output_dir, generated_patch, clone_path, run_id)
+
     return generated_patch, patch_folder
 
 
