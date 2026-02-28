@@ -4,7 +4,7 @@ Automated bug fix workflow that fetches GitHub issues, extracts features, genera
 
 ## Overview
 
-BugOut performs 6 automated steps:
+BugOut performs 8 automated steps:
 
 1. **Fetch Comments** - Uses `gh` CLI to get all issue comments and saves as JSON
 2. **Feature Extraction** - Uses AI (parser.py style) to extract structured features from comments
@@ -12,6 +12,8 @@ BugOut performs 6 automated steps:
 4. **Bug Fix Generation** - Uses AI to propose a fix based on the PRD
 5. **Reviewer Check** - Uses Yutori API to find competent reviewers from issue commenters
 6. **Patch Folder** - Prepares a complete patch folder with all artifacts
+7. **Repo Clone & Agentic Loop** - Clones the repo and uses OpenAI to analyze and generate precise code changes
+8. **Patch Creation** - Generates actual unified diff patch files and updates the directory
 
 ## Requirements
 
@@ -20,6 +22,9 @@ BugOut performs 6 automated steps:
 - `.env` file in project root with:
   - `FASTINO_KEY` - For AI inference
   - `YUTORI_KEY` - For reviewer competence checking
+  - `OPENAI_HOST` - OpenAI API host (e.g., `api.openai.com`)
+  - `OPENAI_MODEL` - OpenAI model to use (e.g., `gpt-4o`)
+  - `OPENAI_API_KEY` - OpenAI API key (optional for some endpoints)
 
 ## Installation
 
@@ -34,6 +39,9 @@ gh --version
 cat > ../.env << EOF
 FASTINO_KEY=your-key
 YUTORI_KEY=your-key
+OPENAI_HOST=api.openai.com
+OPENAI_MODEL=gpt-4o
+OPENAI_API_KEY=your-openai-key
 EOF
 ```
 
@@ -92,6 +100,16 @@ python reviewer_checker_wrapper.py <comments.json> <repo> [output_dir] [wait]
 python patch_generator.py <output_dir> <prd.md> <bug_fix.patch> <reviewer.json> <comments.json> <bugs_with_features.json>
 ```
 
+**Step 7: Clone Repo & Agentic Loop**
+```bash
+python repo_cloner.py <repo> <prd.md> <bug_fix.json|bug_fix.patch> [output_dir]
+```
+
+**Step 8: Create Patch File**
+```bash
+python patch_creator.py <clone_path> <agent_response.json> <output_dir>
+```
+
 ## Output Structure
 
 ```
@@ -101,9 +119,16 @@ bugout_data/
     ├── bugs_with_features.json         # Extracted features
     ├── prd.md                          # Product Requirements Document
     ├── prd.analysis.json               # Feature analysis JSON
-    ├── bug_fix.patch                   # Proposed fix
+    ├── bug_fix.patch                   # Initial proposed fix
     ├── bug_fix.json                    # Fix details JSON
     ├── reviewer.json                   # Reviewer analysis
+    ├── agent_response.json             # Agentic loop output (Step 7)
+    ├── generated.patch                 # AI-generated unified diff (Step 8)
+    ├── git.patch                       # Git diff patch (Step 8)
+    ├── applied_changes.json            # Applied changes log (Step 8)
+    ├── temp/                           # Temp directory with repo clone
+    │   └── <repo>_clone/               # Cloned repository
+    ├── repo_snapshot/                  # Snapshot of modified repo
     └── patch/                          # Complete patch folder
         ├── prd.md
         ├── bug_fix.patch
@@ -112,6 +137,10 @@ bugout_data/
         ├── bugs_with_features.json
         ├── analysis.json
         ├── bug_fix.json
+        ├── agent_response.json
+        ├── generated.patch
+        ├── git.patch
+        ├── applied_changes.json
         └── patch_manifest.json
 ```
 
@@ -144,6 +173,9 @@ Reviewer analysis containing:
 |----------|-------------|----------|
 | `FASTINO_KEY` | API key for AI inference | Yes |
 | `YUTORI_KEY` | API key for Yutori reviewer check | Yes |
+| `OPENAI_HOST` | OpenAI API host (e.g., `api.openai.com`) | Yes |
+| `OPENAI_MODEL` | OpenAI model to use (e.g., `gpt-4o`) | Yes |
+| `OPENAI_API_KEY` | OpenAI API key | Optional |
 
 The `.env` file should be in the parent directory (project root).
 

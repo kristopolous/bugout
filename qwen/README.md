@@ -119,9 +119,16 @@ bugout_data/
     ├── bugs_with_features.json         # Extracted features
     ├── prd.md                          # Product Requirements Document
     ├── prd.analysis.json               # Feature analysis JSON
-    ├── bug_fix.patch                   # Proposed fix
+    ├── bug_fix.patch                   # Initial proposed fix
     ├── bug_fix.json                    # Fix details JSON
     ├── reviewer.json                   # Reviewer analysis
+    ├── agent_response.json             # Agentic loop output (Step 7)
+    ├── generated.patch                 # AI-generated unified diff (Step 8)
+    ├── git.patch                       # Git diff patch (Step 8)
+    ├── applied_changes.json            # Applied changes log (Step 8)
+    ├── temp/                           # Temp directory with repo clone
+    │   └── <repo>_clone/               # Cloned repository
+    ├── repo_snapshot/                  # Snapshot of modified repo
     └── patch/                          # Complete patch folder
         ├── prd.md
         ├── bug_fix.patch
@@ -130,6 +137,10 @@ bugout_data/
         ├── bugs_with_features.json
         ├── analysis.json
         ├── bug_fix.json
+        ├── agent_response.json
+        ├── generated.patch
+        ├── git.patch
+        ├── applied_changes.json
         └── patch_manifest.json
 ```
 
@@ -162,6 +173,9 @@ Reviewer analysis containing:
 |----------|-------------|----------|
 | `FASTINO_KEY` | API key for AI inference | Yes |
 | `YUTORI_KEY` | API key for Yutori reviewer check | Yes |
+| `OPENAI_HOST` | OpenAI API host (e.g., `api.openai.com`) | Yes |
+| `OPENAI_MODEL` | OpenAI model to use (e.g., `gpt-4o`) | Yes |
+| `OPENAI_API_KEY` | OpenAI API key | Optional |
 
 The `.env` file should be in the parent directory (project root).
 
