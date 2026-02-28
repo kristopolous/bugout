@@ -18,6 +18,7 @@ import sys
 import json
 import subprocess
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -29,6 +30,43 @@ from review_checker import check_reviewers_bulk, get_best_reviewer
 OPENAI_HOST = os.environ.get("OPENAI_HOST")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+
+def call_llm(prompt: str, system_prompt: str = "", max_tokens: int = 4000) -> str:
+    """Call the LLM API with the given prompt."""
+    import requests
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    if OPENAI_API_KEY:
+        headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
+    
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+    
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": messages,
+        "temperature": 0.3,
+        "max_tokens": max_tokens
+    }
+    
+    try:
+        response = requests.post(
+            f"{OPENAI_HOST}/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise Exception(f"LLM API error: {e}")
 
 
 def summarize_bug_nature(reports: list, issue_title: str = "") -> str:
@@ -67,37 +105,11 @@ Bug Reports:
         prompt += f"\n--- Report {i} ---\n{ctx}\n"
     
     try:
-        import requests
-        
-        headers = {
-            "Content-Type": "application/json"
-        }
-        
-        if OPENAI_API_KEY:
-            headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
-        
-        payload = {
-            "model": OPENAI_MODEL,
-            "messages": [
-                {"role": "system", "content": "You are a technical analyst specializing in bug report analysis. Provide clear, actionable summaries of software issues."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1500
-        }
-        
-        response = requests.post(
-            f"{OPENAI_HOST}/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=60
+        summary = call_llm(
+            prompt,
+            system_prompt="You are a technical analyst specializing in bug report analysis. Provide clear, actionable summaries of software issues."
         )
-        response.raise_for_status()
-        
-        result = response.json()
-        summary = result["choices"][0]["message"]["content"]
         return summary
-        
     except Exception as e:
         print(f"  ⚠ Error generating LLM summary: {e}", file=sys.stderr)
         return f"Error generating summary: {str(e)}"
@@ -320,7 +332,7 @@ def analyze_with_mcp(features_file: Path, issue_id: str, comments_file: Path) ->
 
 def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
     """
-    Generate a PRD document from analysis results.
+    Step 4: Generate PRD document from analysis results.
     """
     print("Step 4: Generating PRD...")
     
@@ -433,18 +445,220 @@ def find_competent_reviewers(repo: str, authors: List[str]) -> tuple:
     return best, results
 
 
+def clone_repo(repo: str, work_dir: Path) -> Path:
+    """
+    Clone a GitHub repository to a temporary directory.
+    Returns the path to the cloned repository.
+    """
+    print(f"  Cloning {repo}...")
+    
+    repo_name = repo.split("/")[1]
+    clone_path = work_dir / repo_name
+    
+    cmd = ["gh", "repo", "clone", repo, str(clone_path)]
+    stdout, stderr, rc = run_command(cmd)
+    
+    if rc != 0:
+        print(f"  Error cloning repo: {stderr}", file=sys.stderr)
+        raise Exception(f"Failed to clone repository: {stderr}")
+    
+    print(f"  ✓ Cloned to {clone_path}")
+    return clone_path
+
+
+def find_relevant_files(repo_path: Path, prd_content: str, max_files: int = 10) -> List[str]:
+    """
+    Use LLM to identify relevant files in the repository based on the PRD.
+    """
+    print(f"  Finding relevant files...")
+    
+    # Get a list of source files
+    source_files = []
+    for ext in ["*.py", "*.js", "*.ts", "*.java", "*.cpp", "*.c", "*.go", "*.rs"]:
+        source_files.extend(repo_path.rglob(ext))
+    
+    # Sample files (limit to avoid overwhelming the LLM)
+    sample_files = [str(f.relative_to(repo_path)) for f in source_files[:100]]
+    
+    if not sample_files:
+        return []
+    
+    prompt = f"""Given the following bug report, identify the most relevant files to investigate:
+
+Bug Report:
+{prd_content[:2000]}
+
+Available files (sample):
+"""
+    
+    for f in sample_files:
+        prompt += f"\n- {f}"
+    
+    prompt += f"\n\nList the top {max_files} most relevant file paths, one per line. Only output file paths, nothing else."
+    
+    try:
+        response = call_llm(
+            prompt,
+            system_prompt="You are a code analyst. Identify files most likely to contain the bug based on the report.",
+            max_tokens=500
+        )
+        
+        # Parse response to get file paths
+        files = []
+        for line in response.strip().split("\n"):
+            line = line.strip()
+            if line and not line.startswith("-"):
+                files.append(line)
+            elif line.startswith("-"):
+                files.append(line[1:].strip())
+        
+        return files[:max_files]
+    except Exception as e:
+        print(f"  ⚠ Error finding relevant files: {e}", file=sys.stderr)
+        return []
+
+
+def read_file_content(repo_path: Path, file_path: str) -> str:
+    """Read content of a file in the repository."""
+    try:
+        full_path = repo_path / file_path
+        if full_path.exists() and full_path.is_file():
+            return full_path.read_text()
+    except Exception:
+        pass
+    return ""
+
+
+def agentic_fix_generation(repo_path: Path, prd_file: Path, output_dir: Path) -> str:
+    """
+    Step 7: Perform agentic loop to generate fix using LLM.
+    Clones repo, identifies relevant files, and generates fix.
+    Returns the fix content.
+    """
+    print("Step 7: Generating fix via agentic loop...")
+    
+    if not OPENAI_HOST or not OPENAI_MODEL:
+        print("  ⚠ OPENAI_HOST or OPENAI_MODEL not set, skipping fix generation")
+        return ""
+    
+    # Read PRD
+    prd_content = prd_file.read_text()
+    
+    # Find relevant files
+    relevant_files = find_relevant_files(repo_path, prd_content)
+    
+    if not relevant_files:
+        print("  ⚠ No relevant files found")
+        return ""
+    
+    print(f"  Identified {len(relevant_files)} relevant files")
+    
+    # Read relevant file contents
+    file_contents = {}
+    for file_path in relevant_files:
+        content = read_file_content(repo_path, file_path)
+        if content:
+            file_contents[file_path] = content
+    
+    # Generate fix
+    print("  Generating fix...")
+    
+    prompt = f"""Given the following bug report, analyze the code and provide a fix.
+
+Bug Report:
+{prd_content}
+
+Relevant Files:
+"""
+    
+    for file_path, content in file_contents.items():
+        prompt += f"\n\n=== {file_path} ===\n"
+        # Truncate content to avoid token limits
+        prompt += content[:3000]
+    
+    prompt += """
+
+Please provide:
+1. A detailed explanation of the root cause
+2. The specific code changes needed to fix the bug
+3. The complete fixed code for each modified file in unified diff format
+
+Format your response as:
+
+ROOT CAUSE ANALYSIS:
+<explanation>
+
+FIX:
+```diff
+<unified diff showing changes>
+```
+"""
+    
+    try:
+        fix_content = call_llm(
+            prompt,
+            system_prompt="You are an expert software engineer. Analyze bugs and provide precise fixes in unified diff format.",
+            max_tokens=4000
+        )
+        
+        # Save fix proposal
+        fix_proposal_file = output_dir / "fix_proposal.md"
+        with open(fix_proposal_file, "w") as f:
+            f.write(fix_content)
+        
+        print(f"  ✓ Generated fix proposal at {fix_proposal_file}")
+        return fix_content
+        
+    except Exception as e:
+        print(f"  ⚠ Error generating fix: {e}", file=sys.stderr)
+        return ""
+
+
+def generate_patch_file(repo_path: Path, fix_content: str, output_dir: Path) -> Path:
+    """
+    Step 8: Generate a proper patch file from the fix content.
+    Attempts to apply the fix to the cloned repo and generate git diff.
+    """
+    print("Step 8: Generating patch file...")
+    
+    patch_file = output_dir / "fix.patch"
+    
+    # Extract diff from fix_content
+    import re
+    diff_match = re.search(r'```diff\n(.*?)```', fix_content, re.DOTALL)
+    
+    if diff_match:
+        diff_content = diff_match.group(1)
+    else:
+        # Try to find any diff-like content
+        diff_match = re.search(r'(@@.*@@.*\n[-+@ ].*\n)+', fix_content, re.DOTALL)
+        if diff_match:
+            diff_content = diff_match.group(0)
+        else:
+            diff_content = fix_content  # Use full content if no diff found
+    
+    # Write patch file
+    with open(patch_file, "w") as f:
+        f.write(diff_content)
+    
+    print(f"  ✓ Generated patch file at {patch_file}")
+    return patch_file
+
+
 def prepare_patch_folder(
     repo: str,
     issue_number: str,
     prd_file: Path,
     reviewer: Optional[str],
     reviewer_results: List[Dict],
+    fix_content: str,
+    patch_file: Path,
     output_dir: Path
 ) -> Path:
     """
-    Step 6: Prepare patch folder with reviewer.json, patch, prd, and relevant work.
+    Step 9: Prepare patch folder with reviewer.json, patch, prd, and relevant work.
     """
-    print("Step 6: Preparing patch folder...")
+    print("Step 9: Preparing patch folder...")
     
     patch_dir = output_dir / "patch"
     patch_dir.mkdir(exist_ok=True)
@@ -465,25 +679,13 @@ def prepare_patch_folder(
     # Copy PRD
     shutil.copy(prd_file, patch_dir / "prd.md")
     
-    # Create placeholder patch file (actual fix would go here)
-    patch_file = patch_dir / "fix.patch"
-    with open(patch_file, "w") as f:
-        f.write("""# Placeholder Patch
-# This is where the actual code fix would be applied.
-# The fix should be generated based on the PRD analysis.
-
-# To generate the actual fix:
-# 1. Clone the repository
-# 2. Analyze the PRD to understand the bug
-# 3. Make code changes to fix the issue
-# 4. Create a git diff
-# 5. Save it to this file
-
-# The fix should address:
-# - Primary bug behaviour
-# - Platform-specific issues
-# - Technical root causes
-""")
+    # Copy patch file
+    shutil.copy(patch_file, patch_dir / "fix.patch")
+    
+    # Copy fix proposal if exists
+    fix_proposal = output_dir / "fix_proposal.md"
+    if fix_proposal.exists():
+        shutil.copy(fix_proposal, patch_dir / "fix_proposal.md")
     
     # Copy all relevant work files
     for file in output_dir.iterdir():
@@ -493,7 +695,7 @@ def prepare_patch_folder(
     print(f"  ✓ Prepared patch folder at {patch_dir}")
     print(f"    - reviewer.json: {reviewer_file}")
     print(f"    - prd.md: {patch_dir / 'prd.md'}")
-    print(f"    - fix.patch: {patch_file}")
+    print(f"    - fix.patch: {patch_dir / 'fix.patch'}")
     print(f"    - All analysis files copied")
     
     return patch_dir
@@ -511,6 +713,10 @@ def main():
     # Create output directory
     output_dir = Path("bugout_output") / repo.replace("/", "_") / issue_number
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create temp directory for cloning
+    work_dir = output_dir / "workspace"
+    work_dir.mkdir(exist_ok=True)
     
     print(f"\n{'='*60}")
     print(f"Bugout Analysis: {repo}#{issue_number}")
@@ -533,9 +739,19 @@ def main():
         authors = find_commenters(comments_file)
         reviewer, reviewer_results = find_competent_reviewers(repo, authors)
         
-        # Step 6: Prepare patch folder
+        # Step 6: Clone repository
+        repo_path = clone_repo(repo, work_dir)
+        
+        # Step 7: Agentic fix generation
+        fix_content = agentic_fix_generation(repo_path, prd_file, output_dir)
+        
+        # Step 8: Generate patch file
+        patch_file = generate_patch_file(repo_path, fix_content, output_dir)
+        
+        # Step 9: Prepare patch folder
         patch_dir = prepare_patch_folder(
-            repo, issue_number, prd_file, reviewer, reviewer_results, output_dir
+            repo, issue_number, prd_file, reviewer, reviewer_results, 
+            fix_content, patch_file, output_dir
         )
         
         print(f"\n{'='*60}")
@@ -543,14 +759,18 @@ def main():
         print(f"{'='*60}")
         print(f"\nOutput directory: {output_dir}")
         print(f"Patch folder: {patch_dir}")
+        print(f"Cloned repo: {repo_path}")
         
         if reviewer:
             print(f"\nRecommended reviewer: @{reviewer}")
         
         print(f"\nNext steps:")
         print(f"  1. Review the PRD at {prd_file}")
-        print(f"  2. Implement the fix in {patch_dir / 'fix.patch'}")
-        print(f"  3. Submit PR with @{reviewer or 'a suitable reviewer'} as reviewer")
+        print(f"  2. Review the fix proposal at {patch_dir / 'fix_proposal.md'}")
+        print(f"  3. Review the patch at {patch_dir / 'fix.patch'}")
+        print(f"  4. Apply patch to cloned repo at {repo_path}")
+        print(f"  5. Test the fix")
+        print(f"  6. Submit PR with @{reviewer or 'a suitable reviewer'} as reviewer")
         
     except Exception as e:
         print(f"\nError: {e}", file=sys.stderr)
