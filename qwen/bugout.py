@@ -33,7 +33,7 @@ from reviewer_checker_wrapper import check_reviewers_for_issue
 from patch_generator import prepare_patch_folder
 
 # Load .env from parent directory
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+load_dotenv()
 
 
 def validate_environment() -> bool:
