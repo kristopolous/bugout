@@ -2,21 +2,7 @@
 """
 bugout.py - Main BugOut Orchestrator
 
-BugOut: Automated bug fix workflow
-1. Fetch issue comments via gh CLI
-2. Extract features from comments using AI
-3. Generate PRD using MCP-style analysis
-4. Generate bug fix using AI
-5. Check reviewer competence using Yutori
-6. Prepare patch folder with all artifacts
-7. Clone repo and run agentic loop with OpenAI
-8. Generate actual patch file and update directory
-
-Usage:
-    python bugout.py <repo> <issue_number> [output_dir]
-    
-Example:
-    python bugout.py microsoft/vscode 12345 ./bugout_data
+🐛 BugOut: From bug report to patch in 8 automated steps
 """
 
 import json
@@ -38,6 +24,120 @@ from patch_creator import create_patch
 
 # Load .env from parent directory
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ANSI Color codes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    UNDERLINE = "\033[4m"
+    
+    # Foreground colors
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+    
+    # Bright foreground
+    BRIGHT_RED = "\033[91m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    BRIGHT_BLUE = "\033[94m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
+    BRIGHT_WHITE = "\033[97m"
+    
+    # Background colors
+    BG_BLUE = "\033[44m"
+    BG_MAGENTA = "\033[45m"
+    BG_CYAN = "\033[46m"
+    BG_RED = "\033[41m"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unicode symbols
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SYMBOLS = {
+    "success": "✓",
+    "error": "✗",
+    "warning": "⚠",
+    "info": "ℹ",
+    "arrow": "→",
+    "star": "★",
+    "bug": "🐛",
+    "rocket": "🚀",
+    "check": "✅",
+    "folder": "📁",
+    "file": "📄",
+    "gear": "⚙️",
+    "sparkle": "✨",
+    "link": "🔗",
+    "target": "🎯",
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Print functions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def print_banner():
+    """Print the BugOut banner."""
+    # Load logo from parent directory
+    logo_path = Path(__file__).parent.parent / "logo.ansiart"
+    logo = ""
+    if logo_path.exists():
+        with open(logo_path, 'r') as f:
+            logo = f.read()
+    
+    banner = f"""
+{Colors.BRIGHT_CYAN}{logo}{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════╗{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}     {Colors.BOLD}{Colors.BRIGHT_CYAN}🐛 BugOut - Automated Bug Fix Workflow{Colors.RESET}{Colors.BRIGHT_MAGENTA}              {Colors.RESET}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}From bug report to production-ready patch{Colors.RESET}                    {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
+"""
+    print(banner, file=sys.stderr)
+
+
+def print_step_header(step_num: int, total_steps: int, title: str):
+    """Print a formatted step header."""
+    progress = f"{Colors.DIM}[{step_num}/{total_steps}]{Colors.RESET}"
+    icon = f"{Colors.BRIGHT_CYAN}●{Colors.RESET}"
+    print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}━{Colors.RESET} {icon} {progress} {Colors.BOLD}{title}{Colors.RESET}", file=sys.stderr)
+
+
+def print_step_success(message: str):
+    """Print success message."""
+    print(f"  {Colors.BRIGHT_GREEN}{SYMBOLS['check']}{Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}", file=sys.stderr)
+
+
+def print_step_error(message: str):
+    """Print error message."""
+    print(f"  {Colors.BRIGHT_RED}{SYMBOLS['error']}{Colors.RESET} {Colors.RED}{message}{Colors.RESET}", file=sys.stderr)
+
+
+def print_step_info(message: str):
+    """Print info message."""
+    print(f"  {Colors.BRIGHT_CYAN}{SYMBOLS['info']}{Colors.RESET} {Colors.CYAN}{message}{Colors.RESET}", file=sys.stderr)
+
+
+def print_step_warning(message: str):
+    """Print warning message."""
+    print(f"  {Colors.BRIGHT_YELLOW}{SYMBOLS['warning']}{Colors.RESET} {Colors.YELLOW}{message}{Colors.RESET}", file=sys.stderr)
+
+
+def print_sub_step(message: str, value: str = ""):
+    """Print a sub-step with formatted output."""
+    if value:
+        print(f"    {Colors.DIM}{SYMBOLS['arrow']}{Colors.RESET} {Colors.WHITE}{message}{Colors.RESET}: {Colors.BRIGHT_WHITE}{value}{Colors.RESET}", file=sys.stderr)
+    else:
+        print(f"    {Colors.DIM}{SYMBOLS['arrow']}{Colors.RESET} {Colors.WHITE}{message}{Colors.RESET}", file=sys.stderr)
 
 
 def validate_environment() -> bool:
@@ -66,9 +166,9 @@ def validate_environment() -> bool:
         errors.append("OPENAI_MODEL environment variable not set")
 
     if errors:
-        print("Environment validation failed:", file=sys.stderr)
+        print(f"\n{Colors.BG_MAGENTA}{Colors.BOLD} Environment Validation Failed {Colors.RESET}", file=sys.stderr)
         for error in errors:
-            print(f"  - {error}", file=sys.stderr)
+            print(f"  {Colors.BRIGHT_RED}{SYMBOLS['error']}{Colors.RESET} {Colors.RED}{error}{Colors.RESET}", file=sys.stderr)
         return False
 
     return True
@@ -81,75 +181,97 @@ def run_bugout(
 ) -> Tuple[bool, Optional[Path]]:
     """
     Run the complete BugOut workflow.
-    
+
     Args:
         repo: Repository in format "owner/repo"
         issue_number: Issue number
         output_dir: Output directory (default: ./bugout_data/<repo>/<issue_number>)
-        
+
     Returns:
         Tuple of (success: bool, patch_folder_path: Optional[Path])
     """
+    # Print banner
+    print_banner()
+    
     # Setup output directory
     if output_dir is None:
         repo_name = repo.replace("/", "_")
         output_dir = Path(f"./bugout_data/{repo_name}/{issue_number}")
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"=" * 60, file=sys.stderr)
-    print(f"BugOut: Processing {repo}#{issue_number}", file=sys.stderr)
-    print(f"Output directory: {output_dir}", file=sys.stderr)
-    print(f"=" * 60, file=sys.stderr)
-    
+
+    # Print header
+    print(f"{Colors.BG_BLUE}{Colors.BOLD} Configuration {Colors.RESET}", file=sys.stderr)
+    print_sub_step("Repository", f"{Colors.BRIGHT_CYAN}{repo}{Colors.RESET}")
+    print_sub_step("Issue", f"{Colors.BRIGHT_YELLOW}#{issue_number}{Colors.RESET}")
+    print_sub_step("Output", f"{Colors.DIM}{output_dir}{Colors.RESET}")
+    print(f"{Colors.DIM}{'─' * 60}{Colors.RESET}", file=sys.stderr)
+
+    total_steps = 8
+    best_reviewer = None
+    patch_folder = None
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 1: Fetch issue comments
-    print(f"\n[Step 1/8] Fetching issue comments...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(1, total_steps, f"{SYMBOLS['link']} Fetching issue comments")
     comments_file = fetch_issue_comments(repo, issue_number, output_dir)
     if not comments_file:
-        print("Step 1 failed: Could not fetch issue comments", file=sys.stderr)
+        print_step_error("Could not fetch issue comments")
         return False, None
-    print(f"  Saved to: {comments_file}", file=sys.stderr)
+    print_step_success(f"Saved: {Colors.DIM}{comments_file}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 2: Extract features
-    print(f"\n[Step 2/8] Extracting features from comments...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(2, total_steps, f"{SYMBOLS['gear']} Extracting features from comments")
     features_file = output_dir / "bugs_with_features.json"
     api_key = os.environ.get("FASTINO_KEY")
     features_result = process_comments(comments_file, api_key, features_file)
     if not features_result:
-        print("Step 2 failed: Could not extract features", file=sys.stderr)
+        print_step_error("Could not extract features")
         return False, None
-    print(f"  Saved to: {features_result}", file=sys.stderr)
+    print_step_success(f"Saved: {Colors.DIM}{features_result}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 3: Generate PRD
-    print(f"\n[Step 3/8] Generating PRD...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(3, total_steps, f"{SYMBOLS['target']} Generating PRD")
     prd_file = output_dir / "prd.md"
     prd_result = generate_prd_from_file(features_file, prd_file)
     if not prd_result:
-        print("Step 3 failed: Could not generate PRD", file=sys.stderr)
+        print_step_error("Could not generate PRD")
         return False, None
-    print(f"  Saved to: {prd_result}", file=sys.stderr)
+    print_step_success(f"Saved: {Colors.DIM}{prd_result}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 4: Generate bug fix
-    print(f"\n[Step 4/8] Generating bug fix...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(4, total_steps, f"{SYMBOLS['bug']} Generating bug fix")
     bug_fix_result = generate_fix(prd_file, features_file, output_dir, api_key)
     if not bug_fix_result:
-        print("Step 4 failed: Could not generate bug fix", file=sys.stderr)
+        print_step_error("Could not generate bug fix")
         return False, None
-    print(f"  Saved to: {bug_fix_result}", file=sys.stderr)
+    print_step_success(f"Saved: {Colors.DIM}{bug_fix_result}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 5: Check reviewer competence
-    print(f"\n[Step 5/8] Checking reviewer competence...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(5, total_steps, f"{SYMBOLS['star']} Checking reviewer competence")
     reviewer_result, best_reviewer = check_reviewers_for_issue(
         comments_file, repo, output_dir, wait=False
     )
     if not reviewer_result:
-        print("Step 5 failed: Could not check reviewers", file=sys.stderr)
+        print_step_error("Could not check reviewers")
         return False, None
-    print(f"  Saved to: {reviewer_result}", file=sys.stderr)
-    print(f"  Best reviewer: {best_reviewer}", file=sys.stderr)
+    print_step_success(f"Saved: {Colors.DIM}{reviewer_result}{Colors.RESET}")
+    if best_reviewer:
+        print_sub_step("Best reviewer", f"{Colors.BRIGHT_CYAN}@{best_reviewer}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 6: Prepare initial patch folder
-    print(f"\n[Step 6/8] Preparing initial patch folder...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(6, total_steps, f"{SYMBOLS['folder']} Preparing initial patch folder")
     analysis_file = output_dir / "prd.analysis.json"
     bug_fix_json = output_dir / "bug_fix.json"
 
@@ -163,10 +285,12 @@ def run_bugout(
         analysis_file if analysis_file.exists() else None,
         bug_fix_json if bug_fix_json.exists() else None
     )
-    print(f"  Initial patch folder: {patch_folder}", file=sys.stderr)
+    print_step_success(f"Created: {Colors.DIM}{patch_folder}{Colors.RESET}")
 
+    # ═══════════════════════════════════════════════════════════════════════════
     # Step 7: Clone repo and run agentic loop
-    print(f"\n[Step 7/8] Running agentic loop with OpenAI...", file=sys.stderr)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_step_header(7, total_steps, f"{SYMBOLS['rocket']} Running agentic loop with OpenAI")
     bug_fix_json_path = output_dir / "bug_fix.json"
     clone_path, agent_response = run_agentic_loop(
         repo, prd_file,
@@ -174,86 +298,103 @@ def run_bugout(
         output_dir
     )
     if not clone_path or not agent_response:
-        print("Step 7 failed: Agentic loop did not produce results", file=sys.stderr)
-        # Continue anyway - we still have the initial patch
+        print_step_warning("Agentic loop did not produce results (continuing...)")
     else:
-        print(f"  Clone path: {clone_path}", file=sys.stderr)
-        print(f"  Agent response: {output_dir / 'agent_response.json'}", file=sys.stderr)
+        print_step_success(f"Clone: {Colors.DIM}{clone_path}{Colors.RESET}")
+        print_sub_step("Agent response", f"{Colors.DIM}{output_dir / 'agent_response.json'}{Colors.RESET}")
 
+        # ═══════════════════════════════════════════════════════════════════════
         # Step 8: Generate actual patch and update directory
-        print(f"\n[Step 8/8] Generating actual patch file...", file=sys.stderr)
+        # ═══════════════════════════════════════════════════════════════════════
+        print_step_header(8, total_steps, f"{SYMBOLS['sparkle']} Generating actual patch file")
         generated_patch, updated_patch_folder = create_patch(
             clone_path, agent_response, output_dir
         )
         if generated_patch and updated_patch_folder:
-            print(f"  Generated patch: {generated_patch}", file=sys.stderr)
-            print(f"  Updated patch folder: {updated_patch_folder}", file=sys.stderr)
+            print_step_success(f"Generated: {Colors.DIM}{generated_patch}{Colors.RESET}")
+            print_step_success(f"Updated: {Colors.DIM}{updated_patch_folder}{Colors.RESET}")
             patch_folder = updated_patch_folder
         else:
-            print("Step 8 failed: Could not generate patch", file=sys.stderr)
+            print_step_error("Could not generate patch")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Final Summary
+    # ═══════════════════════════════════════════════════════════════════════════
+    print(f"\n{Colors.BRIGHT_MAGENTA}{'═' * 62}{Colors.RESET}", file=sys.stderr)
+    print(f"{Colors.BG_MAGENTA}{Colors.BOLD}  {SYMBOLS['rocket']} BugOut Complete! {Colors.RESET}", file=sys.stderr)
+    print(f"{Colors.BRIGHT_MAGENTA}{'═' * 62}{Colors.RESET}", file=sys.stderr)
     
-    print(f"\n" + "=" * 60, file=sys.stderr)
-    print(f"BugOut Complete!", file=sys.stderr)
-    print(f"Patch folder: {patch_folder}", file=sys.stderr)
-    print(f"Best reviewer: {best_reviewer}", file=sys.stderr)
-    print(f"=" * 60, file=sys.stderr)
-    
-    # Print summary
-    print_summary(patch_folder, best_reviewer, issue_number)
-    
+    print_summary(patch_folder, best_reviewer, issue_number, repo)
+
     return True, patch_folder
 
 
-def print_summary(patch_folder: Path, best_reviewer: str, issue_number: str):
+def print_summary(patch_folder: Path, best_reviewer: str, issue_number: str, repo: str):
     """Print a summary of the generated artifacts."""
-    print(f"""
-╔══════════════════════════════════════════════════════════╗
-║                    BugOut Summary                        ║
-╠══════════════════════════════════════════════════════════╣
-║ Issue:           #{issue_number}
-║ Patch Folder:    {patch_folder}
-║ Best Reviewer:   @{best_reviewer}
-╠══════════════════════════════════════════════════════════╣
-║ Generated Artifacts:                                     ║
-║   - prd.md                  (Product Requirements Doc)   ║
-║   - bug_fix.patch           (Initial Proposed Fix)      ║
-║   - generated.patch         (AI-Generated Patch)        ║
-║   - git.patch               (Git Diff Patch)            ║
-║   - reviewer.json           (Reviewer Analysis)         ║
-║   - issue_comments.json     (Raw Issue Data)            ║
-║   - bugs_with_features.json (Feature Extraction)        ║
-║   - agent_response.json     (Agentic Loop Output)       ║
-║   - applied_changes.json    (Applied Changes Log)       ║
-╚══════════════════════════════════════════════════════════╝
-
-Next Steps:
-1. Review the PRD: cat {patch_folder}/prd.md
-2. Review the generated patch: cat {patch_folder}/generated.patch
-3. Review applied changes: cat {patch_folder}/applied_changes.json
-4. Contact reviewer: @{best_reviewer}
-5. Create PR with the generated patch
-""", file=sys.stderr)
+    summary = f"""
+{Colors.BRIGHT_CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}              {Colors.BOLD}BugOut Summary{Colors.RESET}                                {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Repository:{Colors.RESET} {Colors.WHITE}{repo:<44}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Issue:{Colors.RESET}      {Colors.BRIGHT_YELLOW}#{issue_number:<46}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Patch Folder:{Colors.RESET} {Colors.DIM}{str(patch_folder)[:44]:<44}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.DIM}Best Reviewer:{Colors.RESET} {Colors.BRIGHT_GREEN}@{best_reviewer:<43}{Colors.RESET}  {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.BOLD}Generated Artifacts:{Colors.RESET}                                      {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• prd.md{Colors.RESET}                  {Colors.DIM}(Product Requirements Doc){Colors.RESET}    {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• bug_fix.patch{Colors.RESET}           {Colors.DIM}(Initial Proposed Fix){Colors.RESET}       {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• generated.patch{Colors.RESET}         {Colors.DIM}(AI-Generated Patch){Colors.RESET}        {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• git.patch{Colors.RESET}               {Colors.DIM}(Git Diff Patch){Colors.RESET}            {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• reviewer.json{Colors.RESET}           {Colors.DIM}(Reviewer Analysis){Colors.RESET}         {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• agent_response.json{Colors.RESET}     {Colors.DIM}(Agentic Loop Output){Colors.RESET}       {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.WHITE}• applied_changes.json{Colors.RESET}    {Colors.DIM}(Applied Changes Log){Colors.RESET}       {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}  {Colors.BOLD}Next Steps:{Colors.RESET}                                                {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.DIM}1.{Colors.RESET} Review PRD:        {Colors.WHITE}cat {patch_folder}/prd.md{Colors.RESET}              {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.DIM}2.{Colors.RESET} Review patch:      {Colors.WHITE}cat {patch_folder}/generated.patch{Colors.RESET}   {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.DIM}3.{Colors.RESET} Contact reviewer:  {Colors.BRIGHT_GREEN}@{best_reviewer}{Colors.RESET}                       {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}║{Colors.RESET}    {Colors.DIM}4.{Colors.RESET} Create PR with the generated patch                     {Colors.BRIGHT_CYAN}║{Colors.RESET}
+{Colors.BRIGHT_CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
+"""
+    print(summary, file=sys.stderr)
 
 
 def main():
     if len(sys.argv) < 3:
-        print(__doc__)
-        print("Usage: python bugout.py <repo> <issue_number> [output_dir]", file=sys.stderr)
+        # Load logo for usage message
+        logo_path = Path(__file__).parent.parent / "logo.ansiart"
+        logo = ""
+        if logo_path.exists():
+            with open(logo_path, 'r') as f:
+                logo = f.read()
+        
+        print(f"""
+{Colors.BRIGHT_CYAN}{logo}{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════╗{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}     {Colors.BOLD}{Colors.BRIGHT_CYAN}🐛 BugOut - Automated Bug Fix Workflow{Colors.RESET}{Colors.BRIGHT_MAGENTA}              {Colors.RESET}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╠══════════════════════════════════════════════════════════════╣{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}Usage:{Colors.RESET}                                                       {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py <repo> <issue_number> [output_dir]{Colors.RESET}          {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}                                                          {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}  {Colors.DIM}Example:{Colors.RESET}                                                     {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}║{Colors.RESET}    {Colors.WHITE}python bugout.py microsoft/vscode 12345{Colors.RESET}                      {Colors.BRIGHT_MAGENTA}║{Colors.RESET}
+{Colors.BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
+""", file=sys.stderr)
         sys.exit(1)
-    
+
     repo = sys.argv[1]
     issue_number = sys.argv[2]
     output_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else None
-    
+
     # Validate environment
     if not validate_environment():
         sys.exit(1)
-    
+
     # Run BugOut
     success, patch_folder = run_bugout(repo, issue_number, output_dir)
-    
+
     if not success:
-        print("\nBugOut failed. Check error messages above.", file=sys.stderr)
+        print(f"\n{Colors.BG_RED}{Colors.BOLD} BugOut Failed {Colors.RESET}", file=sys.stderr)
         sys.exit(1)
 
 

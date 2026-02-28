@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 bug_fixer.py - Step 4: Attempt to fix the bug
-Uses AI to analyze the bug and generate a fix.
 """
 
 import json
@@ -9,6 +8,18 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional, Dict, List
+
+# ANSI Colors
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_CYAN = "\033[96m"
+
+SYMBOLS = {"check": "✅", "bug": "🐛", "sparkle": "✨"}
 
 
 def get_repo_structure(repo_path: str = ".") -> str:
@@ -172,27 +183,28 @@ def generate_fix(prd_file: Path, features_file: Path, output_dir: Path, api_key:
     Returns:
         Path to the patch file, or None if failed
     """
-    print("Generating fix prompt...", file=sys.stderr)
+    print(f"\n{Colors.BRIGHT_CYAN}{SYMBOLS['bug']} Step 4: Generating Bug Fix{Colors.RESET}", file=sys.stderr)
+    print(f"  {Colors.CYAN}Generating fix prompt...{Colors.RESET}", file=sys.stderr)
     prompt = generate_fix_prompt(prd_file, features_file)
-    
-    print("Requesting AI-generated fix...", file=sys.stderr)
+
+    print(f"  {Colors.MAGENTA}Requesting AI-generated fix...{Colors.RESET}", file=sys.stderr)
     fix_data = generate_fix_with_ai(prompt, api_key)
-    
+
     if not fix_data:
-        print("Failed to generate fix", file=sys.stderr)
+        print(f"  {Colors.BRIGHT_RED}✗ Failed to generate fix{Colors.RESET}", file=sys.stderr)
         return None
-    
+
     # Save the raw fix data
     fix_json_file = output_dir / "bug_fix.json"
     output_dir.mkdir(parents=True, exist_ok=True)
     with open(fix_json_file, 'w') as f:
         json.dump(fix_data, f, indent=2)
-    
+
     # Create patch file
     patch_file = output_dir / "bug_fix.patch"
     create_patch_file(fix_data, patch_file)
-    
-    print(f"Step 4 complete: Generated bug fix", file=sys.stderr)
+
+    print(f"{Colors.BRIGHT_GREEN}{SYMBOLS['check']} Step 4 complete: Generated bug fix", file=sys.stderr)
     return patch_file
 
 

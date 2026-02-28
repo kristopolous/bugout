@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 feature_extractor.py - Step 2: Feature extraction from bug comments
-Uses parser.py to extract structured features from issue comments.
 """
 
 import json
@@ -10,6 +9,18 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 import uuid
+
+# ANSI Colors
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_CYAN = "\033[96m"
+
+SYMBOLS = {"check": "✅", "gear": "⚙️", "arrow": "→"}
 
 
 def extract_features_from_text(text: str, api_key: str) -> Optional[Dict]:
@@ -97,12 +108,12 @@ def process_comments(comments_file: Path, api_key: str, output_file: Path) -> Op
                 "text": comment['body']
             })
     
-    print(f"Processing {len(texts_to_process)} text entries...", file=sys.stderr)
-    
+    print(f"{Colors.BRIGHT_CYAN}{SYMBOLS['gear']}{Colors.RESET} {Colors.CYAN}Processing {len(texts_to_process)} text entries...{Colors.RESET}", file=sys.stderr)
+
     # Extract features for each text
     bugs_with_features = []
     for i, item in enumerate(texts_to_process):
-        print(f"  Processing {i+1}/{len(texts_to_process)}...", file=sys.stderr)
+        print(f"  {Colors.DIM}{SYMBOLS['arrow']}{Colors.RESET} {Colors.DIM}Processing {i+1}/{len(texts_to_process)}...{Colors.RESET}", file=sys.stderr)
         
         features = extract_features_from_text(item['text'], api_key)
         
@@ -127,7 +138,7 @@ def process_comments(comments_file: Path, api_key: str, output_file: Path) -> Op
             "bugs_with_features": bugs_with_features
         }, f, indent=2)
     
-    print(f"Step 2 complete: Extracted features from {len(bugs_with_features)} entries", file=sys.stderr)
+    print(f"{Colors.BRIGHT_GREEN}{SYMBOLS['check']}{Colors.RESET} {Colors.GREEN}Step 2 complete:{Colors.RESET} Extracted features from {Colors.BRIGHT_CYAN}{len(bugs_with_features)}{Colors.RESET} entries", file=sys.stderr)
     return output_file
 
 

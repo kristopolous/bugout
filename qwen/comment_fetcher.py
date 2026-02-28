@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 comment_fetcher.py - Step 1: Fetch issue comments via gh CLI
-Fetches all comments for a specific issue and saves as JSON.
 """
 
 import json
@@ -9,6 +8,18 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+# ANSI Colors
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_CYAN = "\033[96m"
+
+SYMBOLS = {"check": "✅", "arrow": "→", "bug": "🐛"}
 
 
 def fetch_issue_comments(repo: str, issue_number: str, output_dir: Path) -> Optional[Path]:
@@ -46,8 +57,9 @@ def fetch_issue_comments(repo: str, issue_number: str, output_dir: Path) -> Opti
         output_dir.mkdir(parents=True, exist_ok=True)
         with open(output_file, 'w') as f:
             json.dump(issue_data, f, indent=2)
-        
-        print(f"Step 1 complete: Fetched {len(issue_data.get('comments', []))} comments for issue #{issue_number}", file=sys.stderr)
+
+        num_comments = len(issue_data.get('comments', []))
+        print(f"{Colors.BRIGHT_GREEN}{SYMBOLS['check']}{Colors.RESET} {Colors.GREEN}Step 1 complete:{Colors.RESET} Fetched {Colors.BRIGHT_CYAN}{num_comments}{Colors.RESET} comments for issue {Colors.BRIGHT_CYAN}#{issue_number}{Colors.RESET}", file=sys.stderr)
         return output_file
         
     except subprocess.CalledProcessError as e:

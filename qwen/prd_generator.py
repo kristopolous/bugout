@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 prd_generator.py - Step 3: Generate PRD using MCP toolcall
-Uses MCP to analyze bug reports and generate a Product Requirements Document.
 """
 
 import json
@@ -10,6 +9,18 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from collections import Counter
+
+# ANSI Colors
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_CYAN = "\033[96m"
+
+SYMBOLS = {"check": "✅", "target": "🎯", "file": "📄"}
 
 
 def compute_frequency(values: list) -> List[List]:
@@ -225,7 +236,7 @@ def generate_prd_from_file(features_file: Path, output_file: Path) -> Optional[P
     with open(analysis_json_file, 'w') as f:
         json.dump(analysis, f, indent=2)
     
-    print(f"Step 3 complete: Generated PRD with {len(reports)} reports analyzed", file=sys.stderr)
+    print(f"{Colors.BRIGHT_GREEN}{SYMBOLS['check']}{Colors.RESET} {Colors.GREEN}Step 3 complete:{Colors.RESET} Generated PRD with {Colors.BRIGHT_CYAN}{len(reports)}{Colors.RESET} reports analyzed", file=sys.stderr)
     return output_file
 
 

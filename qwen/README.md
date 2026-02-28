@@ -167,6 +167,33 @@ Reviewer analysis containing:
 - Competence assessment for each
 - Best reviewer recommendation
 
+### agent_response.json (Step 7)
+Output from the agentic loop containing:
+- Root cause analysis
+- Affected files list
+- Fix strategy
+- Detailed code changes with line numbers
+- Testing recommendations
+- Confidence score
+
+### generated.patch (Step 8)
+Unified diff patch file containing:
+- All code changes from the agentic loop
+- Proper diff format for easy review
+- Can be applied with `git apply` or `patch`
+
+### git.patch (Step 8)
+Git-formatted patch from the actual repository changes:
+- Generated from `git diff HEAD`
+- Ready for `git am` or PR creation
+
+### applied_changes.json (Step 8)
+Log of all applied changes containing:
+- List of changes with success/failure status
+- Analysis summary from the agent
+- Testing instructions
+- Confidence score
+
 ## Environment Variables
 
 | Variable | Description | Required |
@@ -187,24 +214,34 @@ BugOut: Processing microsoft/vscode#12345
 Output directory: ./bugout_data/microsoft_vscode/12345
 ============================================================
 
-[Step 1/6] Fetching issue comments...
+[Step 1/8] Fetching issue comments...
   Saved to: bugout_data/microsoft_vscode/12345/issue_12345_comments.json
 
-[Step 2/6] Extracting features from comments...
+[Step 2/8] Extracting features from comments...
   Saved to: bugout_data/microsoft_vscode/12345/bugs_with_features.json
 
-[Step 3/6] Generating PRD...
+[Step 3/8] Generating PRD...
   Saved to: bugout_data/microsoft_vscode/12345/prd.md
 
-[Step 4/6] Generating bug fix...
+[Step 4/8] Generating bug fix...
   Saved to: bugout_data/microsoft_vscode/12345/bug_fix.patch
 
-[Step 5/6] Checking reviewer competence...
+[Step 5/8] Checking reviewer competence...
   Saved to: bugout_data/microsoft_vscode/12345/reviewer.json
   Best reviewer: somecontributor
 
-[Step 6/6] Preparing patch folder...
+[Step 6/8] Preparing initial patch folder...
   Saved to: bugout_data/microsoft_vscode/12345/patch
+
+[Step 7/8] Running agentic loop with OpenAI...
+  Cloning microsoft/vscode...
+  Clone path: bugout_data/microsoft_vscode/12345/temp/microsoft_vscode_clone
+  Agent response: bugout_data/microsoft_vscode/12345/agent_response.json
+
+[Step 8/8] Generating actual patch file...
+  Applying 3 changes...
+  Generated patch: bugout_data/microsoft_vscode/12345/generated.patch
+  Updated patch folder: bugout_data/microsoft_vscode/12345/patch
 
 ============================================================
 BugOut Complete!

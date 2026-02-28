@@ -31,6 +31,162 @@ OPENAI_HOST = os.environ.get("OPENAI_HOST")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
+# ANSI Colors & Styles
+class Colors:
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    ITALIC = '\033[3m'
+    UNDERLINE = '\033[4m'
+    
+    # Foreground colors
+    BLACK = '\033[30m'
+    RED = '\033[31m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[34m'
+    MAGENTA = '\033[35m'
+    CYAN = '\033[36m'
+    WHITE = '\033[37m'
+    
+    # Bright foreground colors
+    BRIGHT_RED = '\033[91m'
+    BRIGHT_GREEN = '\033[92m'
+    BRIGHT_YELLOW = '\033[93m'
+    BRIGHT_BLUE = '\033[94m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BRIGHT_CYAN = '\033[96m'
+    BRIGHT_WHITE = '\033[97m'
+    
+    # Background colors
+    BG_RED = '\033[41m'
+    BG_GREEN = '\033[42m'
+    BG_YELLOW = '\033[43m'
+    BG_BLUE = '\033[44m'
+    BG_MAGENTA = '\033[45m'
+    BG_CYAN = '\033[46m'
+    BG_WHITE = '\033[47m'
+
+# Unicode Symbols
+class Symbols:
+    CHECK = '✓'
+    CROSS = '✗'
+    ARROW_RIGHT = '→'
+    ARROW_DOWN = '↓'
+    ARROW_UP = '↑'
+    BULLET = '•'
+    STAR = '★'
+    DIAMOND = '◆'
+    CIRCLE = '●'
+    RING = '○'
+    BOX_CHECK = '☑'
+    BOX_EMPTY = '☐'
+    WARNING = '⚠'
+    INFO = 'ℹ'
+    GEAR = '⚙'
+    MAGNIFYING_GLASS = '🔍'
+    BUG = '🐛'
+    WRENCH = '🔧'
+    DOCUMENT = '📄'
+    FOLDER = '📁'
+    PERSON = '👤'
+    PEOPLE = '👥'
+    ROCKET = '🚀'
+    LIGHTBULB = '💡'
+    CHART = '📊'
+    BRANCH = '⎇'
+    GIT = '⬡'
+    HAMMER = '🔨'
+    SPARKLES = '✨'
+    DIVIDER = '─'
+    DIVIDER_DOUBLE = '═'
+    DIVIDER_THICK = '━'
+    CORNER_TL = '┌'
+    CORNER_TR = '┐'
+    CORNER_BL = '└'
+    CORNER_BR = '┘'
+    T_LEFT = '├'
+    T_RIGHT = '┤'
+    PIPE = '│'
+
+# Convenience functions
+def c(text: str, color: str) -> str:
+    """Wrap text with color."""
+    return f"{color}{text}{Colors.RESET}"
+
+def bold(text: str) -> str:
+    return c(text, Colors.BOLD)
+
+def dim(text: str) -> str:
+    return c(text, Colors.DIM)
+
+def success(text: str) -> str:
+    return c(f"{Symbols.CHECK} {text}", Colors.BRIGHT_GREEN)
+
+def error(text: str) -> str:
+    return c(f"{Symbols.CROSS} {text}", Colors.BRIGHT_RED)
+
+def warning(text: str) -> str:
+    return c(f"{Symbols.WARNING} {text}", Colors.BRIGHT_YELLOW)
+
+def info(text: str) -> str:
+    return c(f"{Symbols.INFO} {text}", Colors.BRIGHT_BLUE)
+
+def header(text: str) -> str:
+    return c(f"{Symbols.GEAR} {text}", Colors.BOLD + Colors.BRIGHT_CYAN)
+
+def section(num: int, text: str) -> str:
+    """Create a section header."""
+    return c(f"{Symbols.BOX_EMPTY} Step {num}: {text}", Colors.BOLD + Colors.BRIGHT_BLUE)
+
+def section_done(num: int, text: str) -> str:
+    """Create a completed section header."""
+    return c(f"{Symbols.BOX_CHECK} Step {num}: {text}", Colors.BOLD + Colors.BRIGHT_GREEN)
+
+def print_banner():
+    """Print the main banner."""
+    # Read logo from file
+    try:
+        logo_file = Path(__file__).parent / "logo.ansiart"
+        if logo_file.exists():
+            logo = logo_file.read_text()
+            print(logo)
+        else:
+            # Fallback banner
+            banner = f"""
+{c(f"{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.PIPE}{'🐛 BUGOUT':^58}{Symbols.PIPE}", Colors.BOLD + Colors.BRIGHT_WHITE)}
+{c(f"{Symbols.PIPE}{'Automated Bug Analysis & Patch Generation':^58}{Symbols.PIPE}", Colors.DIM)}
+{c(f"{Symbols.PIPE}{'':^58}{Symbols.PIPE}", Colors.BRIGHT_CYAN)}
+{c(f"{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}", Colors.BRIGHT_CYAN)}
+"""
+            print(banner)
+    except:
+        # Simple fallback
+        print(f"{Colors.BRIGHT_CYAN}🐛 BUGOUT{Colors.RESET} - Automated Bug Analysis & Patch Generation")
+
+def print_divider():
+    """Print a divider line."""
+    print(c(f"{Symbols.DIVIDER_THICK*60}", Colors.DIM))
+
+def print_box(title: str, items: List[str], color: str = Colors.BRIGHT_BLUE):
+    """Print items in a box format."""
+    max_len = max(len(title), max(len(i) for i in items)) if items else len(title)
+    width = max_len + 4
+    
+    print(c(f"{Symbols.CORNER_TL}{Symbols.DIVIDER*width}{Symbols.CORNER_TR}", color))
+    print(c(f"{Symbols.PIPE} {bold(title):^{max_len}} {Symbols.PIPE}", color))
+    print(c(f"{Symbols.T_LEFT}{Symbols.DIVIDER*width}{Symbols.T_RIGHT}", color))
+    for item in items:
+        print(c(f"{Symbols.PIPE} {Symbols.ARROW_RIGHT} {item:{max_len-2}} {Symbols.PIPE}", color))
+    print(c(f"{Symbols.CORNER_BL}{Symbols.DIVIDER*width}{Symbols.CORNER_BR}", color))
+
+def print_tree_item(text: str, is_last: bool = False, indent: int = 0):
+    """Print a tree-style item."""
+    prefix = "    " * indent
+    connector = "└── " if is_last else "├── "
+    print(f"{prefix}{c(connector + text, Colors.BRIGHT_WHITE)}")
 
 def call_llm(prompt: str, system_prompt: str = "", max_tokens: int = 4000) -> str:
     """Call the LLM API with the given prompt."""
@@ -75,7 +231,7 @@ def summarize_bug_nature(reports: list, issue_title: str = "") -> str:
     Returns a comprehensive summary of the bug's nature, impact, and root causes.
     """
     if not OPENAI_HOST or not OPENAI_MODEL:
-        print("  ⚠ OPENAI_HOST or OPENAI_MODEL not set, skipping LLM summary")
+        print(f"  {warning('OPENAI_HOST or OPENAI_MODEL not set, skipping LLM summary')}")
         return "No LLM summary available (missing OPENAI_HOST or OPENAI_MODEL)"
     
     # Prepare context from reports
@@ -105,13 +261,16 @@ Bug Reports:
         prompt += f"\n--- Report {i} ---\n{ctx}\n"
     
     try:
+        print(f"  {c(f'{Symbols.LIGHTBULB} Querying LLM for bug analysis...', Colors.BRIGHT_YELLOW)}")
         summary = call_llm(
             prompt,
-            system_prompt="You are a technical analyst specializing in bug report analysis. Provide clear, actionable summaries of software issues."
+            system_prompt="You are a technical analyst specializing in bug report analysis. Provide clear, actionable summaries of software issues.",
+            max_tokens=1500
         )
+        print(f"  {success('LLM analysis complete')}")
         return summary
     except Exception as e:
-        print(f"  ⚠ Error generating LLM summary: {e}", file=sys.stderr)
+        print(f"  {error(f'Error generating LLM summary: {e}')}")
         return f"Error generating summary: {str(e)}"
 
 
@@ -135,7 +294,7 @@ def fetch_issue_comments(repo: str, issue_number: str, output_dir: Path) -> Path
     Step 1: Fetch all comments for a GitHub issue using gh CLI.
     Saves the output as JSON.
     """
-    print(f"Step 1: Fetching comments for {repo}#{issue_number}...")
+    print(f"\n{section(1, f'{Symbols.MAGNIFYING_GLASS} Fetching Issue Comments')} {c(f'for {repo}#{issue_number}', Colors.DIM)}")
     
     output_file = output_dir / "issue_comments.json"
     
@@ -149,7 +308,7 @@ def fetch_issue_comments(repo: str, issue_number: str, output_dir: Path) -> Path
     stdout, stderr, rc = run_command(cmd)
     
     if rc != 0:
-        print(f"Error fetching issue: {stderr}", file=sys.stderr)
+        print(f"  {error(f'Failed to fetch issue: {stderr}')}")
         raise Exception(f"Failed to fetch issue: {stderr}")
     
     # Parse the JSON and reformat for our parser
@@ -187,7 +346,12 @@ def fetch_issue_comments(repo: str, issue_number: str, output_dir: Path) -> Path
     with open(output_file, "w") as f:
         json.dump(rows, f, indent=2)
     
-    print(f"  ✓ Saved {len(rows)} entries to {output_file}")
+    # Print tree structure
+    print(f"  {success(f'Saved {c(str(len(rows)), Colors.BRIGHT_YELLOW)} entries')}")
+    print_tree_item(f"Issue: {c(issue_data['title'][:50], Colors.BRIGHT_WHITE)}", is_last=len(rows) == 1)
+    if len(rows) > 1:
+        print_tree_item(f"Comments: {c(str(len(rows)-1), Colors.BRIGHT_YELLOW)}", is_last=True)
+    
     return output_file
 
 
@@ -196,7 +360,7 @@ def extract_features(comments_file: Path, output_dir: Path) -> Path:
     Step 2: Use parser.py to extract features from comments.
     Requires FASTINO_KEY environment variable.
     """
-    print("Step 2: Extracting features from comments...")
+    print(f"\n{section(2, f'{Symbols.CHART} Extracting Features')}")
     
     output_file = output_dir / "bugs_with_features.jsonl"
     
@@ -206,7 +370,7 @@ def extract_features(comments_file: Path, output_dir: Path) -> Path:
     stdout, stderr, rc = run_command(cmd)
     
     if rc != 0:
-        print(f"Error extracting features: {stderr}", file=sys.stderr)
+        print(f"  {error(f'Failed to extract features: {stderr}')}")
         raise Exception(f"Failed to extract features: {stderr}")
     
     # Save output
@@ -215,7 +379,8 @@ def extract_features(comments_file: Path, output_dir: Path) -> Path:
     
     # Count lines
     line_count = len(stdout.strip().split("\n")) if stdout.strip() else 0
-    print(f"  ✓ Extracted features for {line_count} entries to {output_file}")
+    print(f"  {success(f'Extracted features for {c(str(line_count), Colors.BRIGHT_YELLOW)} entries')}")
+    print_tree_item(f"Output: {c(str(output_file), Colors.DIM)}", is_last=True)
     
     return output_file
 
@@ -295,7 +460,7 @@ def analyze_with_mcp(features_file: Path, issue_id: str, comments_file: Path) ->
     """
     Step 3: Analyze bug reports and generate PRD summary.
     """
-    print("Step 3: Analyzing bug reports...")
+    print(f"\n{section(3, f'{Symbols.GEAR} Analyzing Bug Reports')}")
     
     # Load features
     reports = []
@@ -318,14 +483,24 @@ def analyze_with_mcp(features_file: Path, issue_id: str, comments_file: Path) ->
     result = analyze_issue(issue_id, reports)
     
     # Generate LLM summary of bug nature
-    print("  Generating bug nature summary...")
     bug_nature_summary = summarize_bug_nature(reports, issue_title)
     result["bug_nature_summary"] = bug_nature_summary
     
-    print(f"  ✓ Generated PRD summary")
-    print(f"    - Total reports: {result['prd_summary']['total_reports']}")
-    print(f"    - Crash rate: {result['prd_summary']['crash_rate_pct']}%")
-    print(f"    - Dominant frustration: {result['prd_summary']['dominant_frustration_level']}")
+    # Print summary box
+    print(f"  {success('Analysis complete')}")
+    crash_rate = result['prd_summary']['crash_rate_pct']
+    crash_color = Colors.BRIGHT_RED if crash_rate > 0 else Colors.BRIGHT_GREEN
+    
+    items = [
+        f"Total Reports: {c(str(result['prd_summary']['total_reports']), Colors.BRIGHT_YELLOW)}",
+        f"Crash Rate: {c(str(crash_rate) + '%', crash_color)}",
+        f"Dominant Frustration: {c(result['prd_summary']['dominant_frustration_level'], Colors.BRIGHT_MAGENTA)}",
+        f"Top Platform: {c(result['prd_summary']['top_affected_platform'], Colors.BRIGHT_CYAN)}",
+        f"Primary Issue: {c(result['prd_summary']['primary_bug_behaviour'][:40] + '...', Colors.BRIGHT_WHITE)}"
+    ]
+    
+    for i, item in enumerate(items):
+        print_tree_item(item, is_last=(i == len(items)-1))
     
     return result
 
@@ -334,7 +509,7 @@ def generate_prd(mcp_result: Dict, output_dir: Path) -> Path:
     """
     Step 4: Generate PRD document from analysis results.
     """
-    print("Step 4: Generating PRD...")
+    print(f"\n{section(4, f'{Symbols.DOCUMENT} Generating PRD')}")
     
     prd_file = output_dir / "prd.md"
     
@@ -402,7 +577,9 @@ Based on the analysis above, the fix should address:
     with open(prd_file, "w") as f:
         f.write(prd)
     
-    print(f"  ✓ Generated PRD at {prd_file}")
+    print(f"  {success(f'Generated PRD')}")
+    print_tree_item(f"File: {c(str(prd_file), Colors.DIM)}", is_last=True)
+    
     return prd_file
 
 
@@ -427,10 +604,11 @@ def find_competent_reviewers(repo: str, authors: List[str]) -> tuple:
     Step 5: Check if comment authors are competent reviewers using Yutori API.
     Returns (best_reviewer, all_results).
     """
-    print(f"Step 5: Checking {len(authors)} potential reviewers...")
+    print(f"\n{section(5, f'{Symbols.PEOPLE} Finding Competent Reviewers')}")
+    print(f"  {c(f'Checking {len(authors)} potential reviewers...', Colors.DIM)}")
     
     if not os.environ.get("YUTORI_API_KEY"):
-        print("  ⚠ YUTORI_API_KEY not set, skipping reviewer competence check")
+        print(f"  {warning('YUTORI_API_KEY not set, skipping reviewer check')}")
         return None, []
     
     results = check_reviewers_bulk(authors, repo)
@@ -438,19 +616,21 @@ def find_competent_reviewers(repo: str, authors: List[str]) -> tuple:
     # Get the best reviewer
     best = get_best_reviewer(results)
     
-    print(f"  ✓ Found {len([r for r in results if r.get('scout_id')])} potential reviewers")
+    valid_reviewers = [r for r in results if r.get('scout_id')]
+    print(f"  {success(f'Found {c(str(len(valid_reviewers)), Colors.BRIGHT_GREEN)} competent reviewers')}")
+    
     if best:
-        print(f"    Best reviewer: {best}")
+        print_tree_item(f"Best reviewer: {c(f'@{best}', Colors.BRIGHT_GREEN + Colors.BOLD)}", is_last=True)
     
     return best, results
 
 
 def clone_repo(repo: str, work_dir: Path) -> Path:
     """
-    Clone a GitHub repository to a temporary directory.
+    Step 6: Clone a GitHub repository to a temporary directory.
     Returns the path to the cloned repository.
     """
-    print(f"  Cloning {repo}...")
+    print(f"\n{section(6, f'{Symbols.GIT} Cloning Repository')} {c(repo, Colors.DIM)}")
     
     repo_name = repo.split("/")[1]
     clone_path = work_dir / repo_name
@@ -459,10 +639,12 @@ def clone_repo(repo: str, work_dir: Path) -> Path:
     stdout, stderr, rc = run_command(cmd)
     
     if rc != 0:
-        print(f"  Error cloning repo: {stderr}", file=sys.stderr)
+        print(f"  {error(f'Failed to clone repository: {stderr}')}")
         raise Exception(f"Failed to clone repository: {stderr}")
     
-    print(f"  ✓ Cloned to {clone_path}")
+    print(f"  {success('Repository cloned')}")
+    print_tree_item(f"Path: {c(str(clone_path), Colors.DIM)}", is_last=True)
+    
     return clone_path
 
 
@@ -470,7 +652,7 @@ def find_relevant_files(repo_path: Path, prd_content: str, max_files: int = 10) 
     """
     Use LLM to identify relevant files in the repository based on the PRD.
     """
-    print(f"  Finding relevant files...")
+    print(f"  {c(f'{Symbols.MAGNIFYING_GLASS} Identifying relevant files...', Colors.BRIGHT_YELLOW)}")
     
     # Get a list of source files
     source_files = []
@@ -512,9 +694,10 @@ Available files (sample):
             elif line.startswith("-"):
                 files.append(line[1:].strip())
         
+        print(f"  {success(f'Identified {c(str(len(files)), Colors.BRIGHT_YELLOW)} relevant files')}")
         return files[:max_files]
     except Exception as e:
-        print(f"  ⚠ Error finding relevant files: {e}", file=sys.stderr)
+        print(f"  {warning(f'Error finding relevant files: {e}')}")
         return []
 
 
@@ -535,10 +718,10 @@ def agentic_fix_generation(repo_path: Path, prd_file: Path, output_dir: Path) ->
     Clones repo, identifies relevant files, and generates fix.
     Returns the fix content.
     """
-    print("Step 7: Generating fix via agentic loop...")
+    print(f"\n{section(7, f'{Symbols.WRENCH} Generating Fix via Agentic Loop')}")
     
     if not OPENAI_HOST or not OPENAI_MODEL:
-        print("  ⚠ OPENAI_HOST or OPENAI_MODEL not set, skipping fix generation")
+        print(f"  {warning('OPENAI_HOST or OPENAI_MODEL not set, skipping fix generation')}")
         return ""
     
     # Read PRD
@@ -548,10 +731,12 @@ def agentic_fix_generation(repo_path: Path, prd_file: Path, output_dir: Path) ->
     relevant_files = find_relevant_files(repo_path, prd_content)
     
     if not relevant_files:
-        print("  ⚠ No relevant files found")
+        print(f"  {warning('No relevant files found')}")
         return ""
     
-    print(f"  Identified {len(relevant_files)} relevant files")
+    # Print tree of relevant files
+    for i, file in enumerate(relevant_files):
+        print_tree_item(c(file, Colors.DIM), is_last=(i == len(relevant_files)-1))
     
     # Read relevant file contents
     file_contents = {}
@@ -561,7 +746,7 @@ def agentic_fix_generation(repo_path: Path, prd_file: Path, output_dir: Path) ->
             file_contents[file_path] = content
     
     # Generate fix
-    print("  Generating fix...")
+    print(f"  {c(f'{Symbols.LIGHTBULB} Querying LLM for fix proposal...', Colors.BRIGHT_YELLOW)}")
     
     prompt = f"""Given the following bug report, analyze the code and provide a fix.
 
@@ -606,11 +791,13 @@ FIX:
         with open(fix_proposal_file, "w") as f:
             f.write(fix_content)
         
-        print(f"  ✓ Generated fix proposal at {fix_proposal_file}")
+        print(f"  {success('Fix proposal generated')}")
+        print_tree_item(f"File: {c(str(fix_proposal_file), Colors.DIM)}", is_last=True)
+        
         return fix_content
         
     except Exception as e:
-        print(f"  ⚠ Error generating fix: {e}", file=sys.stderr)
+        print(f"  {error(f'Failed to generate fix: {e}')}")
         return ""
 
 
@@ -619,7 +806,7 @@ def generate_patch_file(repo_path: Path, fix_content: str, output_dir: Path) -> 
     Step 8: Generate a proper patch file from the fix content.
     Attempts to apply the fix to the cloned repo and generate git diff.
     """
-    print("Step 8: Generating patch file...")
+    print(f"\n{section(8, f'{Symbols.HAMMER} Generating Patch File')}")
     
     patch_file = output_dir / "fix.patch"
     
@@ -641,7 +828,9 @@ def generate_patch_file(repo_path: Path, fix_content: str, output_dir: Path) -> 
     with open(patch_file, "w") as f:
         f.write(diff_content)
     
-    print(f"  ✓ Generated patch file at {patch_file}")
+    print(f"  {success('Patch file generated')}")
+    print_tree_item(f"File: {c(str(patch_file), Colors.DIM)}", is_last=True)
+    
     return patch_file
 
 
@@ -658,7 +847,7 @@ def prepare_patch_folder(
     """
     Step 9: Prepare patch folder with reviewer.json, patch, prd, and relevant work.
     """
-    print("Step 9: Preparing patch folder...")
+    print(f"\n{section(9, f'{Symbols.FOLDER} Preparing Patch Folder')}")
     
     patch_dir = output_dir / "patch"
     patch_dir.mkdir(exist_ok=True)
@@ -692,19 +881,21 @@ def prepare_patch_folder(
         if file.is_file():
             shutil.copy(file, patch_dir / file.name)
     
-    print(f"  ✓ Prepared patch folder at {patch_dir}")
-    print(f"    - reviewer.json: {reviewer_file}")
-    print(f"    - prd.md: {patch_dir / 'prd.md'}")
-    print(f"    - fix.patch: {patch_dir / 'fix.patch'}")
-    print(f"    - All analysis files copied")
+    print(f"  {success(f'Patch folder prepared at {c(str(patch_dir), Colors.BRIGHT_CYAN)}')}")
+    print_tree_item(f"reviewer.json", is_last=False)
+    print_tree_item(f"prd.md", is_last=False)
+    print_tree_item(f"fix.patch", is_last=False)
+    print_tree_item(f"fix_proposal.md", is_last=True)
     
     return patch_dir
 
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python bugout.py <repo> <bug_number>")
-        print("Example: python bugout.py microsoft/vscode 12345")
+        print_banner()
+        print(f"\n{error('Missing required arguments')}\n")
+        print(f"  {bold('Usage:')} python bugout.py <repo> <bug_number>")
+        print(f"  {bold('Example:')} python bugout.py microsoft/vscode 12345\n")
         sys.exit(1)
     
     repo = sys.argv[1]
@@ -718,9 +909,10 @@ def main():
     work_dir = output_dir / "workspace"
     work_dir.mkdir(exist_ok=True)
     
-    print(f"\n{'='*60}")
-    print(f"Bugout Analysis: {repo}#{issue_number}")
-    print(f"{'='*60}\n")
+    print_banner()
+    print(f"  {bold('Target:')} {c(repo + '#' + issue_number, Colors.BRIGHT_CYAN)}")
+    print(f"  {bold('Output:')} {c(str(output_dir), Colors.DIM)}\n")
+    print_divider()
     
     try:
         # Step 1: Fetch comments
@@ -754,26 +946,35 @@ def main():
             fix_content, patch_file, output_dir
         )
         
-        print(f"\n{'='*60}")
-        print("Bugout Complete!")
-        print(f"{'='*60}")
-        print(f"\nOutput directory: {output_dir}")
-        print(f"Patch folder: {patch_dir}")
-        print(f"Cloned repo: {repo_path}")
+        # Success banner
+        print(f"\n{c(f'{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}', Colors.BRIGHT_GREEN)}")
+        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)} {c(f'{Symbols.SPARKLES} BUGOUT COMPLETE {Symbols.SPARKLES}', Colors.BOLD + Colors.BRIGHT_GREEN):^54} {c(f'{Symbols.PIPE}', Colors.BRIGHT_GREEN)}")
+        print(f"{c(f'{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}', Colors.BRIGHT_GREEN)}\n")
+        
+        print_box("Summary", [
+            f"{Symbols.FOLDER} Output: {str(output_dir)}",
+            f"{Symbols.BRANCH} Patch: {str(patch_dir)}",
+            f"{Symbols.GIT} Cloned: {str(repo_path)}",
+        ], Colors.BRIGHT_CYAN)
+        
+        print()
         
         if reviewer:
-            print(f"\nRecommended reviewer: @{reviewer}")
+            print(f"{c(f'{Symbols.PERSON} Recommended Reviewer:', Colors.BRIGHT_YELLOW)} {c(f'@{reviewer}', Colors.BRIGHT_GREEN + Colors.BOLD)}\n")
         
-        print(f"\nNext steps:")
-        print(f"  1. Review the PRD at {prd_file}")
-        print(f"  2. Review the fix proposal at {patch_dir / 'fix_proposal.md'}")
-        print(f"  3. Review the patch at {patch_dir / 'fix.patch'}")
-        print(f"  4. Apply patch to cloned repo at {repo_path}")
-        print(f"  5. Test the fix")
-        print(f"  6. Submit PR with @{reviewer or 'a suitable reviewer'} as reviewer")
+        print(f"{bold('Next Steps:')}")
+        print(f"  {c('1.', Colors.BRIGHT_CYAN)} Review the PRD at {c(str(prd_file), Colors.BRIGHT_WHITE)}")
+        print(f"  {c('2.', Colors.BRIGHT_CYAN)} Review the fix proposal at {c(str(patch_dir / 'fix_proposal.md'), Colors.BRIGHT_WHITE)}")
+        print(f"  {c('3.', Colors.BRIGHT_CYAN)} Review the patch at {c(str(patch_dir / 'fix.patch'), Colors.BRIGHT_WHITE)}")
+        print(f"  {c('4.', Colors.BRIGHT_CYAN)} Apply patch to cloned repo at {c(str(repo_path), Colors.BRIGHT_WHITE)}")
+        print(f"  {c('5.', Colors.BRIGHT_CYAN)} Test the fix")
+        print(f"  {c('6.', Colors.BRIGHT_CYAN)} Submit PR with {c(f'@{reviewer}', Colors.BRIGHT_GREEN) if reviewer else 'a suitable reviewer'} as reviewer\n")
         
     except Exception as e:
-        print(f"\nError: {e}", file=sys.stderr)
+        print(f"\n{c(f'{Symbols.CORNER_TL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_TR}', Colors.BRIGHT_RED)}")
+        print(f"{c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)} {error('Execution Failed'):^54} {c(f'{Symbols.PIPE}', Colors.BRIGHT_RED)}")
+        print(f"{c(f'{Symbols.CORNER_BL}{Symbols.DIVIDER_THICK*58}{Symbols.CORNER_BR}', Colors.BRIGHT_RED)}")
+        print(f"\n{error(f'{e}')}\n")
         sys.exit(1)
 
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 reviewer_checker_wrapper.py - Step 5: Check reviewer competence using Yutori API
-Wrapper around review_checker.py functionality.
 """
 
 import json
@@ -14,6 +13,18 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+
+# ANSI Colors
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_CYAN = "\033[96m"
+
+SYMBOLS = {"check": "✅", "star": "★", "user": "👤"}
 
 YUTORI_API_KEY = os.environ.get("YUTORI_KEY")
 YUTORI_BASE_URL = "https://api.yutori.com/v1"
@@ -260,24 +271,25 @@ def check_reviewers_for_issue(
     """
     # Extract commenters
     usernames = extract_commenters_from_issue(comments_file)
-    print(f"Found {len(usernames)} unique commenters: {usernames}", file=sys.stderr)
-    
+    print(f"\n{Colors.BRIGHT_CYAN}{SYMBOLS['star']} Step 5: Reviewer Check{Colors.RESET}", file=sys.stderr)
+    print(f"  {Colors.CYAN}Found {len(usernames)} unique commenters: {Colors.WHITE}{usernames}{Colors.RESET}", file=sys.stderr)
+
     if not usernames:
-        print("No commenters found!", file=sys.stderr)
+        print(f"  {Colors.BRIGHT_RED}✗ No commenters found!{Colors.RESET}", file=sys.stderr)
         return None, None
-    
+
     # Check competence
     results = check_reviewers_bulk(usernames, repo, wait)
-    
+
     # Find best reviewer
     best_reviewer = get_best_reviewer(results)
-    print(f"Best reviewer: {best_reviewer}", file=sys.stderr)
-    
+    print(f"  {Colors.BRIGHT_GREEN}{SYMBOLS['check']} Best reviewer: {Colors.BRIGHT_CYAN}@{best_reviewer}{Colors.RESET}", file=sys.stderr)
+
     # Save reviewer.json
     output_file = output_dir / "reviewer.json"
     save_reviewers_json(results, best_reviewer, output_file)
     
-    print(f"Step 5 complete: Checked {len(results)} reviewers", file=sys.stderr)
+    print(f"{Colors.BRIGHT_GREEN}{SYMBOLS['check']} Step 5 complete: Checked {Colors.BRIGHT_CYAN}{len(results)}{Colors.RESET} reviewers", file=sys.stderr)
     return output_file, best_reviewer
 
 
